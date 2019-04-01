@@ -2,12 +2,23 @@ from PIL import Image
 import numpy as np
 from open3d import open3d
 from scipy.ndimage.filters import generic_filter
+from scipy.ndimage.filters import uniform_filter
 
 ## convert boolean numpy array to image
 def img_frombytes(data):
     size = data.shape[::-1]
     databytes = np.packbits(data, axis=1)
     return Image.frombytes(mode='1', size=size, data=databytes)
+
+## local standard deviation filter for 2d rgb (numpy) image
+def stdev_filter(im, window_size):
+    res = np.zeros(im.shape)
+    for i in range(3):
+        x = im[:,:,i]
+        c1 = uniform_filter(x, window_size, mode='reflect')
+        c2 = uniform_filter(x*x, window_size, mode='reflect')
+        res[:,:,i] = np.sqrt(abs(c2 - c1*c1))
+    return res
 
 ## predict the affordance map and surface normal map
 ## take the inputs of PIL image and the camera intrinsic matrix in numpy
@@ -62,10 +73,7 @@ def predict(color_input, color_bg, depth_input, depth_bg, camera_intrinsic):
         
     ## Compute standard deviation of local normals
     mean_std_norms = np.zeros(color_input.shape, dtype=np.float64)
-    mean_std_norms[:,:,0] = generic_filter(surface_normals_map[:,:,0], np.std, size=(25,25))
-    mean_std_norms[:,:,1] = generic_filter(surface_normals_map[:,:,1], np.std, size=(25,25))
-    mean_std_norms[:,:,2] = generic_filter(surface_normals_map[:,:,2], np.std, size=(25,25))
-    mean_std_norms = np.mean(mean_std_norms, axis=2)
+    mean_std_norms = np.mean(stdev_filter(surface_normals_map, 25), axis=2)
     affordance_map = 1 - mean_std_norms/mean_std_norms.max()
     affordance_map[~depth_valid] = 0
 
