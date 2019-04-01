@@ -1,3 +1,4 @@
 {
-    "python.pythonPath": "/home/tri/envs/cv/bin/python"
+    "python.pythonPath": "/home/tri/envs/cv/bin/python",
+    "editor.detectIndentation": false
 }
