@@ -79,7 +79,6 @@ def predict(color_input, color_bg, depth_input, depth_bg, camera_intrinsic):
         n += 1
         
     ## Compute standard deviation of local normals
-    # mean_std_norms = np.zeros(color_input.shape, dtype=np.float64)
     mean_std_norms = np.mean(stdev_filter(surface_normals_map, 25), axis=2)
     affordance_map = 1 - mean_std_norms/mean_std_norms.max()
     affordance_map[~depth_valid] = 0
@@ -100,19 +99,26 @@ if __name__ == "__main__":
     plt.show()
     for fname in data:
         print(fname, end='\t')
+
+        ## load the datasets
         rgb_in = Image.open(data_path + 'color-input/' + fname + '.png')
         rgb_bg = Image.open(data_path + "/color-background/" + fname + ".png")
         depth_in = Image.open(data_path + "/depth-input/" + fname + ".png")
         depth_bg = Image.open(data_path + "/depth-background/" + fname + ".png")
         cam_intrinsic = np.loadtxt(data_path + 'camera-intrinsics/' + fname + '.txt')
 
+        ## get the suction affordance
         surf_norm, score = predict(rgb_in, rgb_bg, depth_in, depth_bg, cam_intrinsic)
-        
         score_im = Image.fromarray((score*255).astype(np.uint8))
         score_im.save(data_path + 'baseline/' + fname + '.png')
 
+        ## Load ground truth manual annotations for suction affordances
+        ## 0 - negative, 128 - positive, 255 - neutral (no loss)
         label = Image.open(data_path + 'label/' + fname + '.png')
         label_np = np.asarray(label, dtype=np.uint8)
+
+        ## Suction affordance threshold
+        ## take the top 1% prediction
         # threshold = score.max() - 0.0001
         threshold = np.percentile(score, 99)
         score_norm = (score*255).astype(np.uint8)
@@ -125,6 +131,7 @@ if __name__ == "__main__":
         result[n,:] = [sum_tp, sum_fp, sum_tn, sum_fn]
         print("%.8f\t%.8f" % (precision, recall))
 
+        ## visualize
         rgb_in_np = np.asarray(rgb_in, dtype=np.uint8)
         plt.subplot(1,3,1)
         plt.imshow(rgb_in_np)
@@ -138,7 +145,8 @@ if __name__ == "__main__":
         plt.draw()
         plt.pause(0.01)
         n += 1
-
+    
+    ## save the result and calculate overal precision and recall
     np.savetxt('result.txt', result, fmt='%.10f')
     s = result.sum(axis=0)
     precision = s[0]/(s[0]+s[1])

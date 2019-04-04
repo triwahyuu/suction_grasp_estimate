@@ -11,9 +11,12 @@ if __name__ == "__main__":
     result = np.zeros((len(data), 4))
     for fname in data:
         print(fname, end='\t')
+
+        ## get the baseline result and ground truth label
         result = Image.open(data_path + 'baseline/' + fname + '.png')
         label = Image.open(data_path + 'label/' + fname + '.png')
 
+        ## calculate the precision and recall
         result_np = np.asarray(result, dtype=np.uint8)
         label_np = np.asarray(label, dtype=np.uint8)
         threshold = np.percentile(result_np, 99)
