@@ -94,10 +94,9 @@ if __name__ == "__main__":
     data = df.read().splitlines()
     
     result = np.zeros((len(data), 4))
-    n = 0
     plt.ion()
     plt.show()
-    for fname in data:
+    for n,fname in enumerate(data):
         print(fname, end='\t')
 
         ## load the datasets
@@ -144,7 +143,6 @@ if __name__ == "__main__":
         plt.yticks([]); plt.xticks([])
         plt.draw()
         plt.pause(0.01)
-        n += 1
     
     ## save the result and calculate overal precision and recall
     np.savetxt('result.txt', result, fmt='%.10f')
