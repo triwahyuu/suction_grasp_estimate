@@ -1,4 +1,8 @@
 {
-    "python.pythonPath": "/home/tri/envs/cv/bin/python",
-    "editor.detectIndentation": false
+    "python.pythonPath": "/home/tri/envs/pytorch/bin/python",
+    "editor.detectIndentation": false,
+    "python.linting.pylintArgs": [
+        "--errors-only",
+        "--generated-members=numpy.*, torch.*, cv2.*, Struct.*, options.*"
+    ]
 }
