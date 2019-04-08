@@ -12,14 +12,15 @@ class Struct:
             setattr(self, k, v)
 
 class SuctionDataset(Dataset):
-    def __init__(self, options):
-        self.path = options.data_path
+    def __init__(self, options, data_path=None, sample_list=None):
+        self.path = data_path if data_path != None else '../../dataset/'
         self.output_scale = options.output_scale
         self.img_height = options.img_height
         self.img_width = options.img_width
         
         ## data samples
-        self.sample_list = open(options.sample_path).read().splitlines()
+        sample_path = sample_list if sample_list != None else '../../dataset/train-split.txt'
+        self.sample_list = open(sample_path).read().splitlines()
         self.num_samples = len(self.sample_list)
         
         self.train_idx = 1
@@ -62,7 +63,7 @@ if __name__ == "__main__":
     )
 
     # testing functionality
-    suction_dataset = SuctionDataset(options)
+    suction_dataset = SuctionDataset(options, data_path=options.data_path, sample_list=options.sample_path)
     rgbd, label = suction_dataset[1]
 
     # create dataloader
