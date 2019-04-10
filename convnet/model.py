@@ -134,5 +134,6 @@ class SuctionModel(nn.Module):
 
     def create_trunk(self):
         resnet50 = models.resnet50(pretrained=True)
-        updatePadding(resnet50, nn.ReflectionPad2d)
-        return nn.Sequential(*(list(resnet50.children())[:-3]))
+        m = nn.Sequential(*(list(resnet50.children())[:-3]))
+        updatePadding(m, nn.ReflectionPad2d)
+        return m

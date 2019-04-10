@@ -1,28 +1,30 @@
-## training scrupt
-## https://github.com/foolwood/deepmask-pytorch/blob/master/tools/train.py
-import numpy as np
+## training script
+## https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
+## or try this one:  
+# https://github.com/foolwood/deepmask-pytorch/blob/master/tools/train.py
+# https://github.com/wkentaro/pytorch-fcn/blob/master/torchfcn/trainer.py
+
+from __future__ import print_function, division
+
 import torch
 import torch.nn as nn
-from torch.utils import data
-import torch.backends.cudnn as cudnn
-from torch.optim.lr_scheduler import MultiStepLR
+import torch.optim as optim
+from torch.utils.data import DataLoader
+import numpy as np
 
 from dataset import SuctionDataset
 from model import SuctionModel
 from utils import print_speed, init_log, add_file_handler
+from utils import label_accuracy_score
 
+import pytz
+import math
 import os
-import time
-from os import makedirs
-from os.path import isdir, join
-import argparse
-import logging
-import colorama
-import random
+import os.path as osp
 import shutil
-
-import matplotlib.pyplot as plt  # visualization
-import torchvision.utils as vutils  # visualization
+import datetime
+import tqdm
+import argparse
 
 class Struct:
     def __init__(self, **kwargs):
@@ -31,159 +33,16 @@ class Struct:
         
 options = Struct(\
         data_path = '/home/tri/skripsi/dataset/',
-        sample_path = '/home/tri/skripsi/dataset/test-split.txt',
+        sample_path = '/home/tri/skripsi/dataset/train-split.txt',
         img_height =  480,
         img_width = 640,
         batch_size = 4,
         n_class = 3,
         output_scale = 8,
         shuffle = True,
-        learning_rate = 0.001
+        learning_rate = 0.001,
+        momentum = 0.99
     )
-
-parser = argparse.ArgumentParser(description='PyTorch DeepMask/SharpMask Training')
-parser.add_argument('-j', '--workers', default=12, type=int, metavar='N',
-                    help='number of data loading workers (default: 12)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
-parser.add_argument('-b', '--batch', default=32, type=int,
-                    metavar='N', help='mini-batch size (default: 32)')
-parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float,
-                    metavar='LR', help='learning rate')
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-                    help='momentum')
-parser.add_argument('--weight-decay', '--wd', default=5e-4, type=float,
-                    metavar='W', help='weight decay (default: 5e-4)')
-parser.add_argument('--maxload', default=4000, type=int, metavar='N',
-                    help='max number of training batches per epoch')
-parser.add_argument('--testmaxload', default=500, type=int, metavar='N',
-                    help='max number of testing batches')
-parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
-                    help='manual epoch number (useful on restarts)')
-parser.add_argument('--print-freq', '-p', default=20, type=int,
-                    metavar='N', help='print frequency (default: 20)')
-parser.add_argument('-v', '--visualize', action='store_true',
-                    help='visualize the result heatmap')
-
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-class BinaryMeter(object):
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.acc = 0
-        self.n = 0
-
-    def add(self, output, target):
-        target, output = target.squeeze(), output.squeeze()
-        assert output.numel() == target.numel(), 'target and output do not match'
-
-        acc = torch.mul(output, target)
-        self.acc += acc.ge(0).sum().item()
-        self.n += output.size(0)
-
-    def value(self):
-        res = self.acc / self.n if self.n > 0 else 0
-        return res*100
-
-
-class IouMeter(object):
-    def __init__(self, thr, sz):
-        self.sz = sz
-        self.iou = torch.zeros(sz, dtype=torch.float32)
-        self.thr = np.log(thr / (1 - thr))
-        self.reset()
-
-    def reset(self):
-        self.iou.zero_()
-        self.n = 0
-
-    def add(self, output, target):
-        target, output = target.squeeze(), output.squeeze()
-        assert output.numel() == target.numel(), 'target and output do not match'
-
-        batch, h, w = output.shape
-        pred = output.ge(self.thr)
-        mask_sum = pred.eq(1).add(target.eq(1))
-        intxn = torch.sum(mask_sum == 2, dim=(1, 2)).float()
-        union = torch.sum(mask_sum > 0, dim=(1, 2)).float()
-        for i in range(batch):
-            if union[i].item() > 0:
-                self.iou[self.n+i] = intxn[i].item() / union[i].item()
-        self.n += batch
-
-    def value(self, s):
-        nb = max(self.iou.ne(0).sum(), 1)
-        iou = self.iou.narrow(0, 0, nb)
-
-        def is_number(s):
-            try:
-                float(s)
-                return True
-            except ValueError:
-                return False
-        if s == 'mean':
-            res = iou.mean().item()
-        elif s == 'var':
-            res = iou.var().item()
-        elif s == 'median':
-            res = iou.median().squeeze().item()
-        elif is_number(s):
-            iou_sort, _ = iou.sort()
-            res = iou_sort.ge(float(s)).sum().float().item() / float(nb)
-        return res * 100
-
-
-def visual_batch(img, pred_mask, label=None):
-    img_show = vutils.make_grid(img, normalize=True, scale_each=True)
-    img_show_numpy = np.transpose(img_show.cpu().data.numpy(), axes=(1, 2, 0))
-
-    iSz_res = torch.nn.functional.interpolate(pred_mask, size=(args.iSz, args.iSz))
-    pad_res = torch.nn.functional.pad(iSz_res, (16, 16, 16, 16))
-    mask_show = vutils.make_grid(pad_res, scale_each=True)
-    mask_show_numpy = np.transpose(mask_show.cpu().data.numpy(), axes=(1, 2, 0))
-
-    if str(type(label)).find('torch'):
-        iSz_label = torch.nn.functional.interpolate(label, size=(args.iSz, args.iSz))
-        pad_label = torch.nn.functional.pad(iSz_label, (16, 16, 16, 16), value=-1)
-        label_show = vutils.make_grid(pad_label, normalize=True, scale_each=True)
-        label_show_numpy = np.transpose(label_show.cpu().data.numpy(), axes=(1, 2, 0))
-
-        fig, (ax1, ax2) = plt.subplots(nrows=2)
-        ax1.imshow(img_show_numpy)
-        ax1.imshow(mask_show_numpy[:, :, 0], alpha=.5, cmap='jet')
-        # ax1.imshow(mask_show_numpy[:, :, 0] > 0.5, alpha=.5)
-        ax1.axis('off')
-        ax2.imshow(img_show_numpy)
-        ax2.imshow(label_show_numpy, alpha=.5)
-        ax2.axis('off')
-    else:
-        plt.imshow(img_show_numpy)
-        plt.imshow(mask_show_numpy[:, :, 0], alpha=.5, cmap='jet')
-        # ax1.imshow(mask_show_numpy[:, :, 0] > 0.2, alpha=.5)
-        plt.axis('off')
-    plt.subplots_adjust(.05, .05, .95, .95)
-    plt.show()
-    plt.close()
-
 
 def BNtoFixed(m):
     # From https://github.com/KaiyangZhou/deep-person-reid/blob/master/torchreid/utils/torchtools.py
@@ -193,234 +52,287 @@ def BNtoFixed(m):
     if class_name.find('BatchNorm') != -1:
         m.eval()
 
+## training the `model`
+## TODO:
+## - do validation every constant iteration interval
+## - save model every validation
+## - have some statistics and logging
+def train():
+    # prepare model
+    model = SuctionModel(options)
+    model.apply(BNtoFixed)
+    model.cuda()
+    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
+    criterion.cuda()
 
-def train(train_loader, model, criterion, optimizer, epoch):
-    logger = logging.getLogger('global')
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    mask_losses = AverageMeter()
-    score_losses = AverageMeter()
+    # dataset
+    suction_dataset = SuctionDataset(options)
+    data_loader = DataLoader(suction_dataset, batch_size=options.batch_size,\
+        shuffle=options.shuffle, num_workers=2)
 
-    # switch to train mode
-    model.train()
-    if args.freeze_bn:
-        model.apply(BNtoFixed)
-    train_loader.dataset.shuffle()
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-    end = time.time()
-    for i, (img, target, head_status) in enumerate(train_loader):
-        # measure data loading time
-        data_time.update(time.time() - end)
+    for epoch in range(5000):
+        running_loss = 0.0
+        running_corrects = 0
 
-        img = img.to(device)
-        target = target.to(device)
+        for rgbd_input, label in data_loader:
+            rgbd_input[0].cuda()
+            rgbd_input[1].cuda()
+            label.cuda()
+            optimizer.zero_grad()
+            
+            out = model(rgbd_input)
+            _, preds = torch.max(out, 1)
+            loss = criterion(out, label)
+            loss.backward()
+            optimizer.step()
 
-        # compute output
-        output = model(img)
-        loss = criterion(output[head_status[0]], target)
 
-        # measure and record loss
-        if head_status[0] == 0:
-            mask_losses.update(loss.item(), img.size(0))
-            loss.mul_(img.size(0))
+class Trainer(object):
+
+    def __init__(self, model, optimizer, criterion, train_loader, val_loader, 
+                 output_path, max_iter, cuda=True, interval_validate=None):
+        self.cuda = cuda
+
+        self.model = model
+        self.optim = optimizer
+
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.criterion = criterion
+        if self.cuda:
+            self.criterion = self.criterion.cuda()
+
+        self.timestamp_start = datetime.datetime.now(pytz.timezone('Asia/Jakarta'))
+        self.bn2fixed = True
+        self.training = False
+
+        if interval_validate is None:
+            self.interval_validate = len(self.train_loader)
         else:
-            score_losses.update(loss.item(), img.size(0))
+            self.interval_validate = interval_validate
 
-        # compute gradient and do SGD step
-        optimizer.zero_grad()
-        loss.backward()  # gradOutputs:mul(self.inputs:size(1))
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), 10)  # REMOVE?
-        optimizer.step()
+        self.output_path = output_path  # output path
+        if not osp.exists(self.output_path):
+            os.makedirs(self.output_path)
 
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
+        self.log_headers = [
+            'epoch',
+            'iteration',
+            'train/loss',
+            'train/acc',
+            'train/acc_cls',
+            'train/mean_iu',
+            'train/fwavacc',
+            'valid/loss',
+            'valid/acc',
+            'valid/acc_cls',
+            'valid/mean_iu',
+            'valid/fwavacc',
+            'elapsed_time',
+        ]
+        if not osp.exists(osp.join(self.output_path, 'log.csv')):
+            with open(osp.join(self.output_path, 'log.csv'), 'w') as f:
+                f.write(','.join(self.log_headers) + '\n')
 
-        if args.visualize and head_status[0] == 0:
-            visual_batch(img, output[0].sigmoid(), target)
+        self.epoch = 0
+        self.iteration = 0
+        self.max_iter = max_iter
+        self.best_mean_iu = 0
 
-        if i % args.print_freq == 0:
-            logger.info('Epoch: [{0}][{1}/{2}]\t'
-                        'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                        'Data {data_time.val:.3f} ({data_time.avg:.3f})\n'
-                        'LR {lr:.1e} \t Mask Loss {mask_loss.val:.4f} ({mask_loss.avg:.4f})\t'
-                        'Score Loss {score_loss.val:.3f} ({score_loss.avg:.3f})'.format(
-                epoch, i, len(train_loader), batch_time=batch_time, lr=optimizer.param_groups[0]['lr'],
-                data_time=data_time, mask_loss=mask_losses, score_loss=score_losses))
-            print_speed(epoch * len(train_loader) + i + 1, batch_time.avg, args.maxepoch * len(train_loader))
+    def validate(self):
+        self.model.eval()
 
-    # writer.add_scalar('train_loss/mask_loss', mask_losses.avg, epoch)
-    # writer.add_scalar('train_loss/score_losses', score_losses.avg, epoch)
+        n_class = self.train_loader.dataset.n_class
 
+        val_loss = 0
+        label_trues, label_preds = [], []
+        for batch_idx, (data, target) in tqdm.tqdm(
+                enumerate(self.val_loader), total=len(self.val_loader),
+                desc='Valid iteration=%d' % self.iteration, ncols=80,
+                leave=False):
+            if self.cuda:
+                data, target = data.cuda(), target.cuda()
+            
+            ## validate
+            with torch.no_grad():
+                score = self.model(data)
 
-def validate(val_loader, model, criterion, epoch=0):
-    logger = logging.getLogger('global')
-    batch_time = AverageMeter()
-    mask_losses = AverageMeter()
-    score_losses = AverageMeter()
+            loss = self.criterion(score, target)
+            loss_data = loss.data.item()
+            if np.isnan(loss_data):
+                raise ValueError('loss is nan while validating')
+            val_loss += loss_data / len(data)
 
-    mask_meter = IouMeter(0.5, len(val_loader.dataset))
-    score_meter = BinaryMeter()
+            ## some stats
+            imgs = data.data.cpu()
+            lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
+            lbl_true = target.data.cpu()
+            for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
+                img, lt = self.val_loader.dataset.untransform(img, lt)
+                label_trues.append(lt)
+                label_preds.append(lp)
 
-    # switch to evaluate mode
-    model.eval()
+        metrics = label_accuracy_score(
+            label_trues, label_preds, n_class)
 
-    with torch.no_grad():
-        end = time.time()
-        for i, (img, target, head_status) in enumerate(val_loader):
-            img = img.to(device)
-            target = target.to(device)
+        val_loss /= len(self.val_loader)
 
-            # compute output
-            output = model(img)
-            loss = criterion(output[head_status[0]], target)
+        with open(osp.join(self.output_path, 'log.csv'), 'a') as f:
+            elapsed_time = (
+                datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
+                self.timestamp_start).total_seconds()
+            log = [self.epoch, self.iteration] + [''] * 5 + \
+                  [val_loss] + list(metrics) + [elapsed_time]
+            log = map(str, log)
+            f.write(','.join(log) + '\n')
 
-            # measure accuracy and record loss
-            if head_status[0] == 0:
-                mask_losses.update(loss.item(), img.size(0))
-                mask_meter.add(output[head_status[0]], target)
-            else:
-                score_losses.update(loss.item(), img.size(0))
-                score_meter.add(output[head_status[0]], target)
+        mean_iu = metrics[2]
+        is_best = mean_iu > self.best_mean_iu
+        if is_best:
+            self.best_mean_iu = mean_iu
+        torch.save({
+            'epoch': self.epoch,
+            'iteration': self.iteration,
+            'arch': self.model.__class__.__name__,
+            'optim_state_dict': self.optim.state_dict(),
+            'model_state_dict': self.model.state_dict(),
+            'best_mean_iu': self.best_mean_iu,
+        }, osp.join(self.output_path, 'checkpoint.pth.tar'))
+        if is_best:
+            shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
+                        osp.join(self.output_path, 'model_best.pth.tar'))
 
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
+        if not self.bn2fixed and self.training:
+            self.model.train()
 
-        acc = mask_meter.value('0.7')
+    def train_epoch(self):
+        if self.bn2fixed: # set to constant batch normalization
+            self.model.eval()
+        elif self.training:
+            self.model.train()
 
-        logger.info(' * Epoch [{0}]Mask Loss {mask_loss.avg:.3f} Score Loss {mask_loss.avg:.3f}'.format(
-            epoch, mask_loss=mask_losses, cls_loss=score_losses))
-        logger.info(' * Epoch [%03d] | IoU: mean %05.2f median %05.2f suc@.5 %05.2f suc@.7 %05.2f '
-                    '| acc %05.2f | bestmodel %s' % (epoch, mask_meter.value('mean'),
-                    mask_meter.value('median'), mask_meter.value('0.5'), mask_meter.value('0.7'),
-                    score_meter.value(), 'y' if acc > max_acc else 'n'))
+        n_class = self.train_loader.dataset.n_class
 
-        # writer.add_scalar('val_loss/mask_loss', mask_losses.avg, epoch)
-        # writer.add_scalar('val_loss/score_losses', score_losses.avg, epoch)
-        # writer.add_scalar('val_meter/mask_meter_mean', mask_meter.value('mean'), epoch)
-        # writer.add_scalar('val_meter/mask_meter_median', mask_meter.value('median'), epoch)
-        # writer.add_scalar('val_meter/mask_meter_0.5', mask_meter.value('0.5'), epoch)
-        # writer.add_scalar('val_meter/mask_meter_0.7', mask_meter.value('0.7'), epoch)
-        # writer.add_scalar('val_meter/score_meter', score_meter.value(), epoch)
+        for batch_idx, (data, target) in tqdm.tqdm(
+                enumerate(self.train_loader), total=len(self.train_loader),
+                desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):
+            
+            iteration = batch_idx + self.epoch * len(self.train_loader)
+            if self.iteration != 0 and (iteration - 1) != self.iteration:
+                continue  # for resuming
+            self.iteration = iteration
 
-    return acc
+            if self.iteration % self.interval_validate == 0:
+                self.validate()
 
+            if self.cuda:
+                data, target = data.cuda(), target.cuda()
+            
+            ## main training function
+            self.optim.zero_grad()
+            out = self.model(data)
 
-def save_checkpoint(state, is_best, file_path='', filename='checkpoint.pth.tar'):
-    torch.save(state, join(file_path, filename))
-    if is_best:
-        shutil.copyfile(join(file_path, filename), join(file_path, 'model_best.pth.tar'))
+            loss = self.criterion(out, target)
+            loss_data = loss.data.item()
+            if np.isnan(loss_data):
+                raise ValueError('loss is nan while training')
+            loss.backward()
+            self.optim.step()
 
+            ## the stats
+            metrics = []
+            lbl_pred = out.data.max(1)[1].cpu().numpy()[:, :, :]
+            lbl_true = target.data.cpu().numpy()
+            acc, acc_cls, mean_iu, fwavacc = label_accuracy_score(\
+                    lbl_true, lbl_pred, n_class=n_class)
+            metrics.append((acc, acc_cls, mean_iu, fwavacc))
+            metrics = np.mean(metrics, axis=0)
 
-def main():
-    global args, device, max_acc, writer
+            with open(osp.join(self.output_path, 'log.csv'), 'a') as f:
+                elapsed_time = (
+                    datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
+                    self.timestamp_start).total_seconds()
+                log = [self.epoch, self.iteration] + [loss_data] + \
+                    metrics.tolist() + [''] * 5 + [elapsed_time]
+                log = map(str, log)
+                f.write(','.join(log) + '\n')
 
-    max_acc = -1
+            if self.iteration >= self.max_iter:
+                break
+
+    def train(self):
+        self.training = True
+        max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
+        for epoch in tqdm.trange(self.epoch, max_epoch,
+                                 desc='Train', ncols=80):
+            self.epoch = epoch
+            self.train_epoch()
+            if self.iteration >= self.max_iter:
+                break
+                
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument('--resume', help='checkpoint path')
+    parser.add_argument(
+        '--lr', type=float, default=1.0e-3, help='learning rate',
+    )
+    parser.add_argument(
+        '--weight-decay', type=float, default=0.0005, help='weight decay',
+    )
+    parser.add_argument(
+        '--momentum', type=float, default=0.99, help='momentum',
+    )
     args = parser.parse_args()
-    if args.arch == 'SharpMask':
-        trainSm = True
-        args.hfreq = 1
-        args.gSz = args.iSz
-    else:
-        trainSm = False
 
-    # Setup experiments results path
-    pathsv = 'sharpmask/train' if trainSm else 'deepmask/train'
-    args.rundir = join(args.rundir, pathsv)
-    try:
-        if not isdir(args.rundir):
-            makedirs(args.rundir)
-    except OSError as err:
-        print(err)
+    file_path = osp.dirname(osp.abspath(__file__))
+    project_path = '/home/tri/skripsi/suction_grasp_estimate'
+    now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 
-    # Setup logger
-    init_log('global', logging.INFO)
-    add_file_handler('global', join(args.rundir, 'train.log'), logging.INFO)
-    logger = logging.getLogger('global')
-    logger.info('running in directory %s' % args.rundir)
-    logger.info(args)
-    # writer = SummaryWriter(log_dir=join(args.rundir, 'tb')) # tensorboard stuff
 
-    # Get argument defaults (hastag #thisisahack)
-    parser.add_argument('--IGNORE', action='store_true')
-    defaults = vars(parser.parse_args(['--IGNORE']))
-
-    # Print all arguments, color the non-defaults
-    for argument, value in sorted(vars(args).items()):
-        reset = colorama.Style.RESET_ALL
-        color = reset if value == defaults[argument] else colorama.Fore.MAGENTA
-        logger.info('{}{}: {}{}'.format(color, argument, value, reset))
-
-    # Setup seeds
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    random.seed(args.seed)
-
-    # Setup device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    # Setup Model
-    model = (SuctionModel(options)).to(device)
-    model = torch.nn.DataParallel(model, device_ids=range(torch.cuda.device_count()))
-    logger.info(model)
-
-    # Setup data loader
-    train_dataset = SuctionDataset(options)
-    val_dataset = SuctionDataset(options)
-    train_loader = data.DataLoader(
-        train_dataset, batch_size=args.batch, num_workers=args.workers,
-        pin_memory=True, sampler=None)
-    val_loader = data.DataLoader(
-        val_dataset, batch_size=args.batch, num_workers=args.workers,
-        pin_memory=True, sampler=None)
-
-    # Setup Metrics
-    criterion = nn.SoftMarginLoss().to(device)
-
-    # Setup optimizer, lr_scheduler and loss function
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
-    scheduler = MultiStepLR(optimizer, milestones=[50, 120], gamma=0.3)
-
-    # optionally resume from a checkpoint
+    ## model
+    model = SuctionModel(options)
+    model.apply(BNtoFixed)
+    
+    start_epoch = 0
+    start_iteration = 0
     if args.resume:
-        if os.path.isfile(args.resume):
-            logger.info("loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume)
-            args.start_epoch = checkpoint['epoch']
-            max_acc = checkpoint['max_acc']
-            model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            logger.info("loaded checkpoint '{}' (epoch {})".format(
-                args.resume, checkpoint['epoch']))
-        else:
-            logger.warning("no checkpoint found at '{}'".format(args.resume))
-
-    cudnn.benchmark = True
-
-    for epoch in range(args.start_epoch, args.maxepoch):
-        scheduler.step(epoch=epoch)
-        # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch)
-
-        # evaluate on validation set
-        if epoch % 2 == 1:
-            acc = validate(val_loader, model, criterion, epoch)
-
-            is_best = acc > max_acc
-            max_acc = max(acc, max_acc)
-            # remember best mean loss and save checkpoint
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'max_acc': max_acc,
-                'optimizer': optimizer.state_dict(),
-            }, is_best, args.rundir)
+        checkpoint = torch.load(args.resume)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        start_epoch = checkpoint['epoch']
+        start_iteration = checkpoint['iteration']
+    
+    model.cuda()
+    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
+    criterion.cuda()
 
 
-if __name__ == '__main__':
-    main()
+    ## dataset
+    train_dataset = SuctionDataset(options)
+    train_loader = DataLoader(train_dataset, batch_size=options.batch_size,\
+        shuffle=options.shuffle, num_workers=4)
+    val_dataset = SuctionDataset(options, sample_list=options.data_path + 'test-split.txt')
+    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=4)
+
+
+    ## optimizer
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
+    if args.resume:
+        optimizer.load_state_dict(checkpoint['optim_state_dict'])
+    
+    ## the main deal
+    trainer = Trainer(
+        model=model,
+        optimizer=optimizer,
+        criterion=criterion,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        output_path=os.path(project_path, 'result', now), 
+        max_iter=1000000, 
+        interval_validate=4000)
+    trainer.epoch = start_epoch
+    trainer.iteration = start_iteration
+    trainer.train()

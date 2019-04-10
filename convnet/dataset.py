@@ -13,15 +13,16 @@ class Struct:
 
 class SuctionDataset(Dataset):
     def __init__(self, options, data_path=None, sample_list=None):
-        self.path = data_path if data_path != None else '../../dataset/'
+        self.path = data_path if data_path != None else options.data_path
         self.output_scale = options.output_scale
         self.img_height = options.img_height
         self.img_width = options.img_width
         
         ## data samples
-        sample_path = sample_list if sample_list != None else '../../dataset/train-split.txt'
+        sample_path = sample_list if sample_list != None else options.sample_path
         self.sample_list = open(sample_path).read().splitlines()
         self.num_samples = len(self.sample_list)
+        self.n_class = 3
         
         self.train_idx = 1
         self.train_epoch_idx = 1
