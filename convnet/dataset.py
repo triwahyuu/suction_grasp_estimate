@@ -1,7 +1,7 @@
 ## data loader script
 import random
 import numpy as np
-from skimage import io
+from PIL import Image
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
@@ -31,19 +31,22 @@ class SuctionDataset(Dataset):
         # transforms
         self.to_tensor = transforms.ToTensor()
         self.normalize = transforms.Normalize((0.485,0.456,0.406), (0.229,0.224,0.225))
+        self.resize_label = transforms.Resize((self.img_height//self.output_scale,
+            self.img_width//self.output_scale))
 
     def __getitem__(self, index):
-        color_img = self.to_tensor(io.imread(self.path + 'color-input/' + self.sample_list[index] + '.png'))
+        color_img = self.to_tensor(Image.open(self.path + 'color-input/' + self.sample_list[index] + '.png'))
         color_img = self.normalize(color_img)
         
-        depth = self.to_tensor(io.imread(self.path + 'depth-input/' + \
-            self.sample_list[index] + '.png').astype(np.float32)) * 65536/10000
-        depth = depth.clamp(0.0, 1.2)
+        depth = Image.open(self.path + 'depth-input/' + self.sample_list[index] + '.png')
+        depth = (self.to_tensor(np.asarray(depth, dtype=np.float32)) * 65536/10000).clamp(0.0, 1.2)
         depth_img = torch.cat([depth, depth, depth], 0)
         depth_img = self.normalize(depth_img)
 
-        label = self.to_tensor(io.imread(self.path + 'label/' + self.sample_list[index] + '.png'))
-        label = torch.round(label*2 + 1)
+        label = self.resize_label(Image.open(self.path + 'label/' + self.sample_list[index] + '.png'))
+        label = self.to_tensor(label)
+        label = torch.round(label*2 + 1).long() # set to label value, then cast to long int
+        label = label.view(self.img_height//self.output_scale, -1)
 
         return [color_img, depth_img], label
 

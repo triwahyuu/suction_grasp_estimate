@@ -36,7 +36,7 @@ options = Struct(\
         sample_path = '/home/tri/skripsi/dataset/train-split.txt',
         img_height =  480,
         img_width = 640,
-        batch_size = 4,
+        batch_size = 2,
         n_class = 3,
         output_scale = 8,
         shuffle = True,
@@ -153,13 +153,13 @@ class Trainer(object):
                 desc='Valid iteration=%d' % self.iteration, ncols=80,
                 leave=False):
             if self.cuda:
-                data, target = data.cuda(), target.cuda()
+                data[0], data[1], target = data[0].cuda(), data[1].cuda(), target.cuda()
             
             ## validate
             with torch.no_grad():
-                score = self.model(data)
+                out = self.model(data)
 
-            loss = self.criterion(score, target)
+            loss = self.criterion(out, target)
             loss_data = loss.data.item()
             if np.isnan(loss_data):
                 raise ValueError('loss is nan while validating')
@@ -167,7 +167,7 @@ class Trainer(object):
 
             ## some stats
             imgs = data.data.cpu()
-            lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
+            lbl_pred = out.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true = target.data.cpu()
             for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
                 img, lt = self.val_loader.dataset.untransform(img, lt)
@@ -224,11 +224,11 @@ class Trainer(object):
                 continue  # for resuming
             self.iteration = iteration
 
-            if self.iteration % self.interval_validate == 0:
+            if self.iteration % self.interval_validate == 0 and self.iteration != 0:
                 self.validate()
 
             if self.cuda:
-                data, target = data.cuda(), target.cuda()
+                data[0], data[1], target = data[0].cuda(), data[1].cuda(), target.cuda()
             
             ## main training function
             self.optim.zero_grad()
@@ -281,9 +281,6 @@ if __name__ == "__main__":
         '--lr', type=float, default=1.0e-3, help='learning rate',
     )
     parser.add_argument(
-        '--weight-decay', type=float, default=0.0005, help='weight decay',
-    )
-    parser.add_argument(
         '--momentum', type=float, default=0.99, help='momentum',
     )
     args = parser.parse_args()
@@ -313,9 +310,10 @@ if __name__ == "__main__":
     ## dataset
     train_dataset = SuctionDataset(options)
     train_loader = DataLoader(train_dataset, batch_size=options.batch_size,\
-        shuffle=options.shuffle, num_workers=4)
+        shuffle=options.shuffle, num_workers=2)
     val_dataset = SuctionDataset(options, sample_list=options.data_path + 'test-split.txt')
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=options.batch_size,\
+        shuffle=False, num_workers=2)
 
 
     ## optimizer
@@ -324,15 +322,10 @@ if __name__ == "__main__":
         optimizer.load_state_dict(checkpoint['optim_state_dict'])
     
     ## the main deal
-    trainer = Trainer(
-        model=model,
-        optimizer=optimizer,
-        criterion=criterion,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        output_path=os.path(project_path, 'result', now), 
-        max_iter=1000000, 
-        interval_validate=4000)
+    trainer = Trainer(model=model, optimizer=optimizer, criterion=criterion,
+        train_loader=train_loader, val_loader=val_loader,
+        output_path=os.path.join(project_path, 'result', now), 
+        max_iter=1000000, interval_validate=4000)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

@@ -59,7 +59,7 @@ class SymmetricPad2d(nn.Module):
 
 def updatePadding(net, nn_padding):
     typename = torch.typename(net)
-    # print(typename)
+
     if typename.find('Sequential') >= 0 or typename.find('Bottleneck') >= 0:
         modules_keys = list(net._modules.keys())
         for i in reversed(range(len(modules_keys))):
@@ -87,26 +87,17 @@ def updatePadding(net, nn_padding):
                 return p_sz
     return -1
 
-## for reference
-# https://github.com/warmspringwinds/pytorch-segmentation-detection/blob/master/pytorch_segmentation_detection/models/resnet_fcn.py
-def get_model():
-    # load pre-trained resnet model
-    rgb_trunk = models.resnet50(pretrained=True)
-    # remove FC layer
-    rgb_trunk = nn.Sequential(*(list(rgb_trunk.children())[:-3]))
-    depth_trunk = copy.deepcopy(rgb_trunk)
 
-    # https://discuss.pytorch.org/t/multiple-input-model-architecture/19754/2
-    rgbd = torch.cat((rgb_trunk, depth_trunk), 0)
-
-    model = nn.Sequential(rgbd)
-    model.add_module(nn.Conv2d(2048, 512, kernel_size=1))
-    model.add_module(nn.Conv2d(512, 128, kernel_size=1))
-    model.add_module(nn.Conv2d(128, 3, kernel_size=1))
-    model.add_module(nn.UpsamplingBilinear2d(scale_factor=2))
-
-    # updatePadding(model, SymmetricPad2d)
-    updatePadding(model, nn.ReflectionPad2d) # is it the same?
+class Interpolate(nn.Module):
+    def __init__(self, scale, mode):
+        super(Interpolate, self).__init__()
+        self.interp = nn.functional.interpolate
+        self.scale = scale
+        self.mode = mode
+        
+    def forward(self, x):
+        x = self.interp(x, scale_factor=self.scale, mode=self.mode, align_corners=True)
+        return x
 
 
 class SuctionModel(nn.Module):
@@ -115,10 +106,52 @@ class SuctionModel(nn.Module):
         self.rgb_trunk = self.create_trunk()
         self.depth_trunk = self.create_trunk()
 
+        self.conv1 = nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1))
+        self.conv2 = nn.Conv2d(128, options.n_class, kernel_size=(1,1), stride=(1,1))
+        self.upsample = Interpolate(scale=2, mode='bilinear')
+        updatePadding(self.conv1, nn.ReflectionPad2d)
+        updatePadding(self.conv2, nn.ReflectionPad2d)
+        updatePadding(self.upsample, nn.ReflectionPad2d)
+
         self.feature = nn.Sequential(
-            nn.Conv2d(2048, 512, kernel_size=1),
-            nn.Conv2d(512, 128, kernel_size=1),
-            nn.Conv2d(128, 3, kernel_size=1),
+            nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
+            # nn.Conv2d(216, 128, kernel_size=(1,1), stride=(1,1)),
+            nn.Conv2d(128, options.n_class, kernel_size=(1,1), stride=(1,1)),
+            Interpolate(scale=2, mode='bilinear')
+            # nn.UpsamplingBilinear2d(scale_factor=2)
+        )
+        updatePadding(self.feature, nn.ReflectionPad2d)
+
+    def forward(self, rgbd_input):
+        rgb_feature = self.rgb_trunk(rgbd_input[0])
+        depth_feature = self.depth_trunk(rgbd_input[1])
+
+        # concatenate rgb and depth input
+        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
+
+        # out = self.feature(rgbd_parallel)
+        out = self.conv1(rgbd_parallel)
+        out = self.conv2(out)
+        out = self.upsample(out)
+        
+        return out
+
+    def create_trunk(self):
+        resnet50 = models.resnet18(pretrained=True)
+        m = nn.Sequential(*(list(resnet50.children())[:-3]))
+        updatePadding(m, nn.ReflectionPad2d)
+        return m
+
+class SuctionModel1(nn.Module):
+    def __init__(self, options):
+        super(SuctionModel1, self).__init__()
+        self.rgb_trunk = self.create_trunk()
+        self.depth_trunk = self.create_trunk()
+
+        self.feature = nn.Sequential(
+            nn.Conv2d(2048, 512, kernel_size=(1,1), stride=(1,1)),
+            nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
+            nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
             nn.UpsamplingBilinear2d(scale_factor=2)
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
