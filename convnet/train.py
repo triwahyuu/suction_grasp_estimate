@@ -151,7 +151,7 @@ class Trainer(object):
         label_trues, label_preds = [], []
         for batch_idx, (input_img, target) in tqdm.tqdm(
                 enumerate(self.val_loader), total=len(self.val_loader),
-                desc='  validation=%d' % self.iteration, ncols=80,
+                desc='  validation %d' % self.iteration, ncols=80,
                 leave=False):
             if self.cuda:
                 input_img[0], input_img[1], target = input_img[0].cuda(), input_img[1].cuda(), target.cuda()
@@ -173,17 +173,17 @@ class Trainer(object):
                 label_trues.append(lt.numpy())
                 label_preds.append(lp)
 
-        metrics = label_accuracy_score(
-            label_trues, label_preds, n_class)
-
+        metrics = label_accuracy_score(label_trues, label_preds, n_class)
         val_loss /= len(self.val_loader)
 
         with open(osp.join(self.output_path, 'log.csv'), 'a') as f:
+            val_loss = '%.10f' %(val_loss)
+            metrics_str = ['%.10f' %(a) for a in list(metrics)]
             elapsed_time = (
                 datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
                 self.timestamp_start).total_seconds()
             log = [self.epoch, self.iteration] + [''] * 5 + \
-                  [val_loss] + list(metrics) + [elapsed_time]
+                  [val_loss] + metrics_str + [elapsed_time]
             log = map(str, log)
             f.write(','.join(log) + '\n')
 
@@ -216,7 +216,7 @@ class Trainer(object):
 
         for batch_idx, (input_img, target) in tqdm.tqdm(
                 enumerate(self.train_loader), total=len(self.train_loader),
-                desc=' epoch=%d' % self.epoch, ncols=80, leave=False):
+                desc=' epoch %d' % self.epoch, ncols=80, leave=False):
             
             iteration = batch_idx + self.epoch * len(self.train_loader)
             if self.iteration != 0 and (iteration - 1) != self.iteration:
@@ -242,20 +242,18 @@ class Trainer(object):
             self.optim.step()
 
             ## the stats
-            metrics = []
             lbl_pred = out.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true = target.data.cpu().numpy()
-            acc, acc_cls, mean_iu, fwavacc = label_accuracy_score(\
-                    lbl_true, lbl_pred, n_class=n_class)
-            metrics.append((acc, acc_cls, mean_iu, fwavacc))
-            metrics = np.mean(metrics, axis=0)
+            metrics = label_accuracy_score(lbl_true, lbl_pred, n_class=n_class)
 
             with open(osp.join(self.output_path, 'log.csv'), 'a') as f:
+                loss_data = '%.10f' %(loss_data)
+                metrics = ['%.10f' %(a) for a in list(metrics)]
                 elapsed_time = (
                     datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
                     self.timestamp_start).total_seconds()
                 log = [self.epoch, self.iteration] + [loss_data] + \
-                    metrics.tolist() + [''] * 5 + [elapsed_time]
+                    metrics + [''] * 5 + [elapsed_time]
                 log = map(str, log)
                 f.write(','.join(log) + '\n')
 
