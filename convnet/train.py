@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from dataset import SuctionDataset
-from model import SuctionModel
+from model import SuctionModel18
 from utils import print_speed, init_log, add_file_handler
 from utils import label_accuracy_score
 
@@ -59,7 +59,7 @@ def BNtoFixed(m):
 ## - have some statistics and logging
 def train():
     # prepare model
-    model = SuctionModel(options)
+    model = SuctionModel18(options)
     model.apply(BNtoFixed)
     model.cuda()
     criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
@@ -150,7 +150,7 @@ class Trainer(object):
         label_trues, label_preds = [], []
         for batch_idx, (data, target) in tqdm.tqdm(
                 enumerate(self.val_loader), total=len(self.val_loader),
-                desc='Valid iteration=%d' % self.iteration, ncols=80,
+                desc='  validation=%d' % self.iteration, ncols=100,
                 leave=False):
             if self.cuda:
                 data[0], data[1], target = data[0].cuda(), data[1].cuda(), target.cuda()
@@ -217,7 +217,7 @@ class Trainer(object):
 
         for batch_idx, (data, target) in tqdm.tqdm(
                 enumerate(self.train_loader), total=len(self.train_loader),
-                desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):
+                desc=' epoch=%d' % self.epoch, ncols=100, leave=False):
             
             iteration = batch_idx + self.epoch * len(self.train_loader)
             if self.iteration != 0 and (iteration - 1) != self.iteration:
@@ -266,7 +266,7 @@ class Trainer(object):
         self.training = True
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
         for epoch in tqdm.trange(self.epoch, max_epoch,
-                                 desc='Train', ncols=80):
+                                 desc='Train', ncols=100):
             self.epoch = epoch
             self.train_epoch()
             if self.iteration >= self.max_iter:
@@ -283,15 +283,18 @@ if __name__ == "__main__":
     parser.add_argument(
         '--momentum', type=float, default=0.99, help='momentum',
     )
+    parser.add_argument(
+        '--use-cpu', dest='use_cpu', action='store_true', help='use cpu on training',
+    )
     args = parser.parse_args()
 
     file_path = osp.dirname(osp.abspath(__file__))
     project_path = '/home/tri/skripsi/suction_grasp_estimate'
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-
+    device = torch.device("cpu" if args.use_cpu else "cuda:0")
 
     ## model
-    model = SuctionModel(options)
+    model = SuctionModel18(options)
     model.apply(BNtoFixed)
     
     start_epoch = 0
@@ -302,9 +305,15 @@ if __name__ == "__main__":
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
     
-    model.cuda()
     criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
-    criterion.cuda()
+    
+    model.to(device)
+    criterion.to(device)
+    # if args.use_cpu:
+    #     model.to('cpu')
+    # else:
+    #     model.cuda()
+    #     criterion.cuda()
 
 
     ## dataset
@@ -325,7 +334,7 @@ if __name__ == "__main__":
     trainer = Trainer(model=model, optimizer=optimizer, criterion=criterion,
         train_loader=train_loader, val_loader=val_loader,
         output_path=os.path.join(project_path, 'result', now), 
-        max_iter=1000000, interval_validate=4000)
+        max_iter=1000000, interval_validate=4000, cuda=(not args.use_cpu))
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

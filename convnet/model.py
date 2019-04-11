@@ -100,25 +100,16 @@ class Interpolate(nn.Module):
         return x
 
 
-class SuctionModel(nn.Module):
+class SuctionModel18(nn.Module):
     def __init__(self, options):
-        super(SuctionModel, self).__init__()
+        super(SuctionModel18, self).__init__()
         self.rgb_trunk = self.create_trunk()
         self.depth_trunk = self.create_trunk()
 
-        self.conv1 = nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1))
-        self.conv2 = nn.Conv2d(128, options.n_class, kernel_size=(1,1), stride=(1,1))
-        self.upsample = Interpolate(scale=2, mode='bilinear')
-        updatePadding(self.conv1, nn.ReflectionPad2d)
-        updatePadding(self.conv2, nn.ReflectionPad2d)
-        updatePadding(self.upsample, nn.ReflectionPad2d)
-
         self.feature = nn.Sequential(
             nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
-            # nn.Conv2d(216, 128, kernel_size=(1,1), stride=(1,1)),
-            nn.Conv2d(128, options.n_class, kernel_size=(1,1), stride=(1,1)),
+            nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
             Interpolate(scale=2, mode='bilinear')
-            # nn.UpsamplingBilinear2d(scale_factor=2)
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
@@ -129,11 +120,7 @@ class SuctionModel(nn.Module):
         # concatenate rgb and depth input
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
 
-        # out = self.feature(rgbd_parallel)
-        out = self.conv1(rgbd_parallel)
-        out = self.conv2(out)
-        out = self.upsample(out)
-        
+        out = self.feature(rgbd_parallel)
         return out
 
     def create_trunk(self):
@@ -142,9 +129,9 @@ class SuctionModel(nn.Module):
         updatePadding(m, nn.ReflectionPad2d)
         return m
 
-class SuctionModel1(nn.Module):
+class SuctionModel50(nn.Module):
     def __init__(self, options):
-        super(SuctionModel1, self).__init__()
+        super(SuctionModel50, self).__init__()
         self.rgb_trunk = self.create_trunk()
         self.depth_trunk = self.create_trunk()
 

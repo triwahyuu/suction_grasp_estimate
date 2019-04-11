@@ -45,7 +45,7 @@ class SuctionDataset(Dataset):
 
         label = self.resize_label(Image.open(self.path + 'label/' + self.sample_list[index] + '.png'))
         label = self.to_tensor(label)
-        label = torch.round(label*2 + 1).long() # set to label value, then cast to long int
+        label = torch.round(label*2).long() # set to label value, then cast to long int
         label = label.view(self.img_height//self.output_scale, -1)
 
         return [color_img, depth_img], label
