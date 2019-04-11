@@ -144,8 +144,9 @@ class Trainer(object):
 
     def validate(self):
         self.model.eval()
-
         n_class = self.train_loader.dataset.n_class
+
+        os.system('play -nq -t alsa synth {} sine {}'.format(0.3, 440)) # sound an alarm
 
         val_loss = 0
         label_trues, label_preds = [], []
@@ -288,15 +289,27 @@ if __name__ == "__main__":
         '--momentum', type=float, default=0.99, help='momentum',
     )
     parser.add_argument(
+        '--datapath', dest='data_path', default='', help='suction grasp dataset path',
+    )
+    parser.add_argument(
+        '--output-path', dest='result_path', default='', help='training result path',
+    )
+    parser.add_argument(
         '--use-cpu', dest='use_cpu', action='store_true', help='use cpu on training',
     )
     args = parser.parse_args()
 
     file_path = osp.dirname(osp.abspath(__file__))
-    project_path = '/home/tri/skripsi/suction_grasp_estimate'
+    result_path = '/home/tri/skripsi/suction_grasp_estimate/result'
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     options.arch = args.arch
     device = torch.device("cpu" if args.use_cpu else "cuda:0")
+
+    if args.data_path != '':
+        options.data_path = args.data_path
+        options.sample_path = args.data_path + 'train-split.txt'
+    if args.result_path != '':
+        result_path = args.result_path
 
     ## model
     if args.arch == 'resnet18' or args.arch == 'resnet34':
@@ -329,14 +342,14 @@ if __name__ == "__main__":
 
 
     ## optimizer
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     if args.resume != '':
         optimizer.load_state_dict(checkpoint['optim_state_dict'])
     
     ## the main deal
     trainer = Trainer(model=model, optimizer=optimizer, criterion=criterion,
         train_loader=train_loader, val_loader=val_loader,
-        output_path=os.path.join(project_path, 'result', now), 
+        output_path=os.path.join(result_path, now), 
         max_iter=500000, interval_validate=1000, cuda=(not args.use_cpu))
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
