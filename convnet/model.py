@@ -2,7 +2,6 @@
 import torch
 import torch.nn as nn
 from torchvision import models
-import copy
 
 ## source:
 # https://github.com/foolwood/deepmask-pytorch/blob/master/models/DeepMask.py
@@ -103,6 +102,7 @@ class Interpolate(nn.Module):
 class SuctionModel18(nn.Module):
     def __init__(self, options):
         super(SuctionModel18, self).__init__()
+        self.arch = options.arch
         self.rgb_trunk = self.create_trunk()
         self.depth_trunk = self.create_trunk()
 
@@ -124,8 +124,12 @@ class SuctionModel18(nn.Module):
         return out
 
     def create_trunk(self):
-        resnet50 = models.resnet18(pretrained=True)
-        m = nn.Sequential(*(list(resnet50.children())[:-3]))
+        resnet = None
+        if self.arch == 'resnet18':
+            resnet = models.resnet18(pretrained=True)
+        elif self.arch == 'resnet34':
+            resnet = models.resnet34(pretrained=True)
+        m = nn.Sequential(*(list(resnet.children())[:-3]))
         updatePadding(m, nn.ReflectionPad2d)
         return m
 
@@ -153,7 +157,13 @@ class SuctionModel50(nn.Module):
         return out
 
     def create_trunk(self):
-        resnet50 = models.resnet50(pretrained=True)
-        m = nn.Sequential(*(list(resnet50.children())[:-3]))
+        resnet = None
+        if self.arch == 'resnet50':
+            resnet = models.resnet50(pretrained=True)
+        elif self.arch == 'resnet101':
+            resnet = models.resnet101(pretrained=True)
+        elif self.arch == 'resnet152':
+            resnet = models.resnet152(pretrained=True)
+        m = nn.Sequential(*(list(resnet.children())[:-3]))
         updatePadding(m, nn.ReflectionPad2d)
         return m

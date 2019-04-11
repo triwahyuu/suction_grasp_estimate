@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from dataset import SuctionDataset
-from model import SuctionModel18
+from model import SuctionModel18, SuctionModel50
 from utils import print_speed, init_log, add_file_handler
 from utils import label_accuracy_score
 
@@ -41,7 +41,8 @@ options = Struct(\
         output_scale = 8,
         shuffle = True,
         learning_rate = 0.001,
-        momentum = 0.99
+        momentum = 0.99,
+        arch = 'resnet18'
     )
 
 def BNtoFixed(m):
@@ -148,30 +149,28 @@ class Trainer(object):
 
         val_loss = 0
         label_trues, label_preds = [], []
-        for batch_idx, (data, target) in tqdm.tqdm(
+        for batch_idx, (input_img, target) in tqdm.tqdm(
                 enumerate(self.val_loader), total=len(self.val_loader),
-                desc='  validation=%d' % self.iteration, ncols=100,
+                desc='  validation=%d' % self.iteration, ncols=80,
                 leave=False):
             if self.cuda:
-                data[0], data[1], target = data[0].cuda(), data[1].cuda(), target.cuda()
+                input_img[0], input_img[1], target = input_img[0].cuda(), input_img[1].cuda(), target.cuda()
             
             ## validate
             with torch.no_grad():
-                out = self.model(data)
+                out = self.model(input_img)
 
             loss = self.criterion(out, target)
             loss_data = loss.data.item()
             if np.isnan(loss_data):
                 raise ValueError('loss is nan while validating')
-            val_loss += loss_data / len(data)
+            val_loss += loss_data / len(input_img[0])
 
             ## some stats
-            imgs = data.data.cpu()
             lbl_pred = out.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true = target.data.cpu()
-            for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
-                img, lt = self.val_loader.dataset.untransform(img, lt)
-                label_trues.append(lt)
+            for lt, lp in zip(lbl_true, lbl_pred):
+                label_trues.append(lt.numpy())
                 label_preds.append(lp)
 
         metrics = label_accuracy_score(
@@ -215,9 +214,9 @@ class Trainer(object):
 
         n_class = self.train_loader.dataset.n_class
 
-        for batch_idx, (data, target) in tqdm.tqdm(
+        for batch_idx, (input_img, target) in tqdm.tqdm(
                 enumerate(self.train_loader), total=len(self.train_loader),
-                desc=' epoch=%d' % self.epoch, ncols=100, leave=False):
+                desc=' epoch=%d' % self.epoch, ncols=80, leave=False):
             
             iteration = batch_idx + self.epoch * len(self.train_loader)
             if self.iteration != 0 and (iteration - 1) != self.iteration:
@@ -228,11 +227,12 @@ class Trainer(object):
                 self.validate()
 
             if self.cuda:
-                data[0], data[1], target = data[0].cuda(), data[1].cuda(), target.cuda()
+                input_img[0], input_img[1] = input_img[0].cuda(), input_img[1].cuda()
+                target = target.cuda()
             
             ## main training function
             self.optim.zero_grad()
-            out = self.model(data)
+            out = self.model(input_img)
 
             loss = self.criterion(out, target)
             loss_data = loss.data.item()
@@ -266,17 +266,23 @@ class Trainer(object):
         self.training = True
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
         for epoch in tqdm.trange(self.epoch, max_epoch,
-                                 desc='Train', ncols=100):
+                                 desc='Train', ncols=80):
             self.epoch = epoch
             self.train_epoch()
             if self.iteration >= self.max_iter:
                 break
                 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
+
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '--resume', default='', type=str, help='checkpoint path'
     )
-    parser.add_argument('--resume', help='checkpoint path')
+    parser.add_argument(
+        '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
+        help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
+    )
     parser.add_argument(
         '--lr', type=float, default=1.0e-3, help='learning rate',
     )
@@ -291,15 +297,19 @@ if __name__ == "__main__":
     file_path = osp.dirname(osp.abspath(__file__))
     project_path = '/home/tri/skripsi/suction_grasp_estimate'
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    options.arch = args.arch
     device = torch.device("cpu" if args.use_cpu else "cuda:0")
 
     ## model
-    model = SuctionModel18(options)
+    if args.arch == 'resnet18' or args.arch == 'resnet34':
+        model = SuctionModel18(options)
+    elif args.arch == 'resnet50' or args.arch == 'resnet101' or args.arch == 'resnet152':
+        model = SuctionModel50(options)
     model.apply(BNtoFixed)
     
     start_epoch = 0
     start_iteration = 0
-    if args.resume:
+    if args.resume != '':
         checkpoint = torch.load(args.resume)
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']
@@ -309,32 +319,27 @@ if __name__ == "__main__":
     
     model.to(device)
     criterion.to(device)
-    # if args.use_cpu:
-    #     model.to('cpu')
-    # else:
-    #     model.cuda()
-    #     criterion.cuda()
 
 
     ## dataset
     train_dataset = SuctionDataset(options)
     train_loader = DataLoader(train_dataset, batch_size=options.batch_size,\
-        shuffle=options.shuffle, num_workers=2)
+        shuffle=options.shuffle, num_workers=3)
     val_dataset = SuctionDataset(options, sample_list=options.data_path + 'test-split.txt')
     val_loader = DataLoader(val_dataset, batch_size=options.batch_size,\
-        shuffle=False, num_workers=2)
+        shuffle=False, num_workers=3)
 
 
     ## optimizer
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
-    if args.resume:
+    if args.resume != '':
         optimizer.load_state_dict(checkpoint['optim_state_dict'])
     
     ## the main deal
     trainer = Trainer(model=model, optimizer=optimizer, criterion=criterion,
         train_loader=train_loader, val_loader=val_loader,
         output_path=os.path.join(project_path, 'result', now), 
-        max_iter=1000000, interval_validate=4000, cuda=(not args.use_cpu))
+        max_iter=500000, interval_validate=1000, cuda=(not args.use_cpu))
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()
