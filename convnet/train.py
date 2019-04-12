@@ -277,7 +277,7 @@ if __name__ == "__main__":
 
     if args.data_path != '':
         options.data_path = args.data_path
-        options.sample_path = args.data_path + 'train-split.txt'
+        options.sample_path = os.path.join(args.data_path, 'train-split.txt')
     if args.result_path != '':
         result_path = args.result_path
 
@@ -306,7 +306,7 @@ if __name__ == "__main__":
     train_dataset = SuctionDataset(options)
     train_loader = DataLoader(train_dataset, batch_size=options.batch_size,\
         shuffle=options.shuffle, num_workers=3)
-    val_dataset = SuctionDataset(options, sample_list=options.data_path + 'test-split.txt')
+    val_dataset = SuctionDataset(options, sample_list=os.path.join(options.data_path, 'test-split.txt'))
     val_loader = DataLoader(val_dataset, batch_size=options.batch_size,\
         shuffle=False, num_workers=3)
 

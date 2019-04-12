@@ -136,6 +136,7 @@ class SuctionModel18(nn.Module):
 class SuctionModel50(nn.Module):
     def __init__(self, options):
         super(SuctionModel50, self).__init__()
+        self.arch = options.arch
         self.rgb_trunk = self.create_trunk()
         self.depth_trunk = self.create_trunk()
 
@@ -143,7 +144,7 @@ class SuctionModel50(nn.Module):
             nn.Conv2d(2048, 512, kernel_size=(1,1), stride=(1,1)),
             nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
-            nn.UpsamplingBilinear2d(scale_factor=2)
+            Interpolate(scale=2, mode='bilinear')
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
@@ -152,7 +153,8 @@ class SuctionModel50(nn.Module):
         depth_feature = self.depth_trunk(rgbd_input[1])
 
         # concatenate rgb and depth input
-        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 0)
+        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
+
         out = self.feature(rgbd_parallel)
         return out
 
