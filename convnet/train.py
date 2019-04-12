@@ -10,11 +10,13 @@
 
 from __future__ import print_function, division
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import numpy as np
+from tensorboardX import SummaryWriter
+from apex import fp16_utils
 
 from dataset import SuctionDataset
 from model import SuctionModel18, SuctionModel50
@@ -63,7 +65,7 @@ def BNtoFixed(m):
 class Trainer(object):
 
     def __init__(self, model, optimizer, criterion, train_loader, val_loader, 
-                 output_path, max_iter, cuda=True, interval_validate=None):
+                 output_path, log_path, max_iter, cuda=True, interval_validate=None):
         self.cuda = cuda
 
         self.model = model
@@ -111,6 +113,7 @@ class Trainer(object):
         self.iteration = 0
         self.max_iter = max_iter
         self.best_mean_iu = 0
+        self.writer = SummaryWriter(log_dir=os.path.join(log_path, 'tb'))
 
     def validate(self):
         self.model.eval()
@@ -148,13 +151,13 @@ class Trainer(object):
         val_loss /= len(self.val_loader)
 
         with open(osp.join(self.output_path, 'log.csv'), 'a') as f:
-            val_loss = '%.10f' %(val_loss)
+            val_loss_str = '%.10f' %(val_loss)
             metrics_str = ['%.10f' %(a) for a in list(metrics)]
             elapsed_time = (
                 datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
                 self.timestamp_start).total_seconds()
             log = [self.epoch, self.iteration] + [''] * 5 + \
-                  [val_loss] + metrics_str + [elapsed_time]
+                  [val_loss_str] + metrics_str + [elapsed_time]
             log = map(str, log)
             f.write(','.join(log) + '\n')
 
@@ -173,6 +176,12 @@ class Trainer(object):
         if is_best:
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
                         osp.join(self.output_path, 'model_best.pth.tar'))
+        
+        self.writer.add_scalar('val/loss', val_loss, self.iteration//100)
+        self.writer.add_scalar('val/accuracy', metrics[0], self.iteration//100)
+        self.writer.add_scalar('val/acc_class', metrics[1], self.iteration//100)
+        self.writer.add_scalar('val/mean_iu', metrics[2], self.iteration//100)
+        self.writer.add_scalar('val/fwacc', metrics[3], self.iteration//100)
 
         if not self.bn2fixed and self.training:
             self.model.train()
@@ -185,6 +194,7 @@ class Trainer(object):
 
         n_class = self.train_loader.dataset.n_class
 
+        m = []
         for batch_idx, (input_img, target) in tqdm.tqdm(
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc=' epoch %d' % self.epoch, ncols=80, leave=False):
@@ -218,15 +228,25 @@ class Trainer(object):
             metrics = label_accuracy_score(lbl_true, lbl_pred, n_class=n_class)
 
             with open(osp.join(self.output_path, 'log.csv'), 'a') as f:
-                loss_data = '%.10f' %(loss_data)
-                metrics = ['%.10f' %(a) for a in list(metrics)]
+                loss_data_str = '%.10f' %(loss_data)
+                metrics_str = ['%.10f' %(a) for a in list(metrics)]
                 elapsed_time = (
                     datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
                     self.timestamp_start).total_seconds()
-                log = [self.epoch, self.iteration] + [loss_data] + \
-                    metrics + [''] * 5 + [elapsed_time]
+                log = [self.epoch, self.iteration] + [loss_data_str] + \
+                    metrics_str + [''] * 5 + [elapsed_time]
                 log = map(str, log)
                 f.write(','.join(log) + '\n')
+            
+            m.append(metrics)
+            if self.iteration % 100 == 0 and self.iteration != 0:
+                m = np.mean(np.array(m), axis=0)
+                self.writer.add_scalar('train/loss', loss_data, self.iteration//100)
+                self.writer.add_scalar('train/accuracy', m[0], self.iteration//100)
+                self.writer.add_scalar('train/acc_class', m[1], self.iteration//100)
+                self.writer.add_scalar('train/mean_iu', m[2], self.iteration//100)
+                self.writer.add_scalar('train/fwacc', m[3], self.iteration//100)
+                m = []
 
             if self.iteration >= self.max_iter:
                 break
@@ -319,7 +339,7 @@ if __name__ == "__main__":
     ## the main deal
     trainer = Trainer(model=model, optimizer=optimizer, criterion=criterion,
         train_loader=train_loader, val_loader=val_loader,
-        output_path=os.path.join(result_path, now), 
+        output_path=os.path.join(result_path, now), log_path=result_path,
         max_iter=500000, interval_validate=1000, cuda=(not args.use_cpu))
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
