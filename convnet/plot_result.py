@@ -4,16 +4,17 @@ import os
 import argparse
 
 if __name__ == "__main__":
-    path = '/home/tri/skripsi/suction_grasp_estimate/result/'
+    file_path = os.path.dirname(os.path.abspath(__file__))
+    result_path = os.path.join('/'.join(file_path.split('/')[:-1]), 'result')
     ave_const = 200
 
-    list_dir = [a for a in sorted(os.listdir(path)) if os.path.isdir(os.path.join(path, a))]
+    list_dir = [a for a in sorted(os.listdir(result_path))[:-1] if os.path.isdir(os.path.join(result_path, a))]
     y = np.array([], dtype=np.float64)
     y_val = np.array([], dtype=np.float64)
     train_loss = np.array([], dtype=np.float64)
     val_loss = np.array([], dtype=np.float64)
     for d in list_dir:
-        p = os.path.join(path, d, 'log.csv')
+        p = os.path.join(result_path, d, 'log.csv')
         data = np.genfromtxt(p, delimiter=',', skip_header=1, dtype=np.float)
 
         y = np.append(y, np.array([a for a in data[:,5].astype(np.float64) if not np.isnan(a)]))
