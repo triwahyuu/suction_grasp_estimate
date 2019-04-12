@@ -1,8 +1,12 @@
-## training script
-## https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
-## or try this one:  
+## TODO:
+## - data logging with tensorboard
 # https://github.com/foolwood/deepmask-pytorch/blob/master/tools/train.py
-# https://github.com/wkentaro/pytorch-fcn/blob/master/torchfcn/trainer.py
+# http://www.erogol.com/use-tensorboard-pytorch/
+## - optimize data logging:
+# https://github.com/NVIDIA/DALI/blob/master/docs/examples/pytorch/resnet50/main.py
+# https://github.com/NVIDIA/apex/blob/master/examples/imagenet/main_amp.py
+# https://discuss.pytorch.org/t/how-to-speed-up-the-data-loader/13740
+
 
 from __future__ import print_function, division
 
@@ -53,43 +57,9 @@ def BNtoFixed(m):
     if class_name.find('BatchNorm') != -1:
         m.eval()
 
-## training the `model`
-## TODO:
-## - do validation every constant iteration interval
-## - save model every validation
-## - have some statistics and logging
-def train():
-    # prepare model
-    model = SuctionModel18(options)
-    model.apply(BNtoFixed)
-    model.cuda()
-    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
-    criterion.cuda()
 
-    # dataset
-    suction_dataset = SuctionDataset(options)
-    data_loader = DataLoader(suction_dataset, batch_size=options.batch_size,\
-        shuffle=options.shuffle, num_workers=2)
-
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-
-    for epoch in range(5000):
-        running_loss = 0.0
-        running_corrects = 0
-
-        for rgbd_input, label in data_loader:
-            rgbd_input[0].cuda()
-            rgbd_input[1].cuda()
-            label.cuda()
-            optimizer.zero_grad()
-            
-            out = model(rgbd_input)
-            _, preds = torch.max(out, 1)
-            loss = criterion(out, label)
-            loss.backward()
-            optimizer.step()
-
-
+## based on:
+## https://github.com/wkentaro/pytorch-fcn/blob/master/torchfcn/trainer.py
 class Trainer(object):
 
     def __init__(self, model, optimizer, criterion, train_loader, val_loader, 
