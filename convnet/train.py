@@ -127,18 +127,18 @@ class Trainer(object):
                 enumerate(self.val_loader), total=len(self.val_loader),
                 desc='  validation %d' % self.iteration, ncols=80,
                 leave=False):
-            if self.cuda:
-                input_img[0], input_img[1], target = input_img[0].cuda(), input_img[1].cuda(), target.cuda()
-            
+                
             ## validate
             with torch.no_grad():
-                out = self.model(input_img)
+                if self.cuda:
+                    input_img[0], input_img[1], target = input_img[0].cuda(), input_img[1].cuda(), target.cuda()
 
-            loss = self.criterion(out, target)
-            loss_data = loss.data.item()
-            if np.isnan(loss_data):
-                raise ValueError('loss is nan while validating')
-            val_loss += loss_data / len(input_img[0])
+                out = self.model(input_img)
+                loss = self.criterion(out, target)
+                loss_data = loss.data.item()
+                if np.isnan(loss_data):
+                    raise ValueError('loss is nan while validating')
+                val_loss += loss_data / len(input_img[0])
 
             ## some stats
             lbl_pred = out.data.max(1)[1].cpu().numpy()[:, :, :]
@@ -187,9 +187,7 @@ class Trainer(object):
             self.model.train()
 
     def train_epoch(self):
-        if self.bn2fixed: # set to constant batch normalization
-            self.model.eval()
-        elif self.training:
+        if not self.bn2fixed and self.training:
             self.model.train()
 
         n_class = self.train_loader.dataset.n_class

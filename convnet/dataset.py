@@ -5,7 +5,7 @@ import os.path
 import numpy as np
 from PIL import Image
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 from torchvision import transforms
 
 from nvidia.dali.pipeline import Pipeline
@@ -158,8 +158,4 @@ if __name__ == "__main__":
     # testing functionality
     suction_dataset = SuctionDataset(options, data_path=options.data_path, sample_list=options.sample_path)
     rgbd, label = suction_dataset[1]
-
-    # create dataloader
-    data_loader = DataLoader(suction_dataset, batch_size=options.batch_size, \
-        shuffle=options.shuffle)
     
