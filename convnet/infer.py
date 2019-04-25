@@ -1,7 +1,8 @@
 ## inference script 
 from vis_util import post_process, visualize
+from model import SuctionModel18, SuctionModel50
 import os
-from model import SuctionModel18
+import argparse
 
 import torch
 from torchvision.transforms import ToTensor, Normalize, Resize
@@ -26,12 +27,23 @@ options = Struct(\
 )
 
 if __name__ == "__main__":
+    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
+        help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
+    )
+    args = parser.parse_args()
+
     ## transforms
     to_tensor = ToTensor()
     normalize = Normalize((0.485,0.456,0.406), (0.229,0.224,0.225))
 
     ## get model
-    model = SuctionModel18(options)
+    if args.arch == 'resnet18' or args.arch == 'resnet34':
+        model = SuctionModel18(options)
+    elif args.arch == 'resnet50' or args.arch == 'resnet101' or args.arch == 'resnet152':
+        model = SuctionModel50(options)
     checkpoint = torch.load(options.model_path)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(options.device)
@@ -70,11 +82,11 @@ if __name__ == "__main__":
     # depth_in = Image.open(os.path.join(options.data_path, 'test', 'test-image.depth.png'))
     # depth_bg = Image.open(os.path.join(options.data_path, 'test', 'test-background.depth.png'))
     # cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'test', 'test-camera-intrinsics.txt'))
-    rgb_in = Image.open(os.path.join(options.data_path, 'color-input', '000024-0.png'))
-    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', '000024-0.png'))
-    depth_in = Image.open(os.path.join(options.data_path, 'depth-input', '000024-0.png'))
-    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', '000024-0.png'))
-    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', '000024-0.txt'))
+    rgb_in = Image.open(os.path.join(options.data_path, 'color-input', '000098-0.png'))
+    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', '000098-0.png'))
+    depth_in = Image.open(os.path.join(options.data_path, 'depth-input', '000098-0.png'))
+    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', '000098-0.png'))
+    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', '000098-0.txt'))
 
     surface_norm, affordance_map = post_process(affordance, rgb_in, rgb_bg,
         depth_in, depth_bg, cam_intrinsic)
