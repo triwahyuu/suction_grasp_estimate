@@ -50,11 +50,13 @@ if __name__ == "__main__":
     model.eval()
 
     ## get the image input
-    color_img = to_tensor(Image.open(os.path.join(options.data_path, 'test', 'test-image.color.png')))
+    # color_img = to_tensor(Image.open(os.path.join(options.data_path, 'test', 'test-image.color.png')))
+    color_img = to_tensor(Image.open(os.path.join(options.data_path, 'color-input', '001059-0.png')))
     color_img = normalize(color_img)
     color_img = color_img.view(1, color_img.size(0), color_img.size(1), color_img.size(2))
 
-    depth = Image.open(os.path.join(options.data_path, 'test', 'test-image.depth.png'))
+    # depth = Image.open(os.path.join(options.data_path, 'test', 'test-image.depth.png'))
+    depth = Image.open(os.path.join(options.data_path, 'depth-input', '001059-0.png'))
     depth = (to_tensor(np.asarray(depth, dtype=np.float32)) * 65536/10000).clamp(0.0, 1.2)
     depth_img = torch.cat([depth, depth, depth], 0)
     depth_img = normalize(depth_img)
@@ -82,11 +84,11 @@ if __name__ == "__main__":
     # depth_in = Image.open(os.path.join(options.data_path, 'test', 'test-image.depth.png'))
     # depth_bg = Image.open(os.path.join(options.data_path, 'test', 'test-background.depth.png'))
     # cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'test', 'test-camera-intrinsics.txt'))
-    rgb_in = Image.open(os.path.join(options.data_path, 'color-input', '000098-0.png'))
-    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', '000098-0.png'))
-    depth_in = Image.open(os.path.join(options.data_path, 'depth-input', '000098-0.png'))
-    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', '000098-0.png'))
-    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', '000098-0.txt'))
+    rgb_in = Image.open(os.path.join(options.data_path, 'color-input', '001059-0.png'))
+    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', '001059-0.png'))
+    depth_in = Image.open(os.path.join(options.data_path, 'depth-input', '001059-0.png'))
+    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', '001059-0.png'))
+    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', '001059-0.txt'))
 
     surface_norm, affordance_map = post_process(affordance, rgb_in, rgb_bg,
         depth_in, depth_bg, cam_intrinsic)
