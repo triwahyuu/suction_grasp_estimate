@@ -1,6 +1,6 @@
 from PIL import Image
 import numpy as np
-from open3d import open3d
+import open3d
 from scipy.ndimage.filters import generic_filter
 from scipy.ndimage.filters import uniform_filter
 
