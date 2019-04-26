@@ -336,7 +336,7 @@ if __name__ == "__main__":
     trainer = Trainer(model=model, optimizer=optimizer, criterion=criterion,
         train_loader=train_loader, val_loader=val_loader,
         output_path=os.path.join(result_path, now), log_path=result_path,
-        max_iter=500000, interval_validate=1000, cuda=(not args.use_cpu))
+        max_iter=500000, cuda=(not args.use_cpu))
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()
