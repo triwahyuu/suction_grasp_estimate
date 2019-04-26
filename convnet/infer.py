@@ -33,7 +33,16 @@ if __name__ == "__main__":
         '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
+    parser.add_argument(
+        '--datapath', dest='data_path', default='', help='suction grasp dataset path',
+    )
+    parser.add_argument(
+        '--checkpoint', default='', help='suction grasp dataset path',
+    )
     args = parser.parse_args()
+
+    options.data_path = args.data_path if args.data_path != '' else options.data_path
+    options.model_path = args.checkpoint if args.checkpoint != '' else options.model_path
 
     ## transforms
     to_tensor = ToTensor()
