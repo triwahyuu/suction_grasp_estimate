@@ -79,10 +79,9 @@ class Trainer(object):
         self.bn2fixed = True
         self.training = False
 
-        if interval_validate is None:
-            self.interval_validate = len(self.train_loader)
-        else:
-            self.interval_validate = interval_validate
+        
+        self.interval_validate = len(self.train_loader) if interval_validate is None \
+            else interval_validate
 
         self.output_path = output_path  # output path
         if not osp.exists(self.output_path):
