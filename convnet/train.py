@@ -20,7 +20,6 @@ from apex import fp16_utils
 
 from dataset import SuctionDataset
 from model import SuctionModel18, SuctionModel50
-from utils import print_speed, init_log, add_file_handler
 from utils import label_accuracy_score
 
 import pytz
@@ -55,8 +54,7 @@ def BNtoFixed(m):
     # From https://github.com/KaiyangZhou/deep-person-reid/blob/master/torchreid/utils/torchtools.py
     # 1. no update for running mean and var
     # 2. scale and shift parameters are still trainable
-    class_name = m.__class__.__name__
-    if class_name.find('BatchNorm') != -1:
+    if type(m) == nn.BatchNorm2d:
         m.eval()
 
 
