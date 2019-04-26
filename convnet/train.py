@@ -16,7 +16,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
-from apex import fp16_utils
+# from apex import fp16_utils
 
 from dataset import SuctionDataset
 from model import SuctionModel18, SuctionModel50
