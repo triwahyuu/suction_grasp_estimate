@@ -8,6 +8,9 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+import imgaug as ia
+from imgaug import augmenters as iaa
+
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -16,6 +19,60 @@ class Struct:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+class SuctionDatasetNew(Dataset):
+    def __init__(self, options, data_path=None, sample_list=None):
+        self.path = data_path if data_path != None else options.data_path
+        self.output_scale = options.output_scale
+        self.img_height = options.img_height
+        self.img_width = options.img_width
+        
+        ## data samples
+        sample_path = sample_list if sample_list != None else options.sample_path
+        self.sample_list = open(sample_path).read().splitlines()
+        self.num_samples = len(self.sample_list)
+        self.n_class = 3
+        
+        self.train_idx = 1
+        self.train_epoch_idx = 1
+        self.train_epoch_size = self.num_samples
+
+        # transforms
+        self.to_tensor = transforms.ToTensor()
+        self.normalize = transforms.Normalize((0.485,0.456,0.406), (0.229,0.224,0.225))
+        self.resize_label = transforms.Resize((self.img_height//self.output_scale,
+            self.img_width//self.output_scale))
+
+    def __getitem__(self, index):
+        # color_img = self.to_tensor(Image.open(os.path.join(self.path, 'color-input', self.sample_list[index] + '.png')))
+        # color_img = self.normalize(color_img)
+        
+        # depth = Image.open(os.path.join(self.path, 'depth-input', self.sample_list[index] + '.png'))
+        # depth = (self.to_tensor(np.asarray(depth, dtype=np.float32)) * 65536/10000).clamp(0.0, 1.2)
+        # depth_img = torch.cat([depth, depth, depth], 0)
+        # depth_img = self.normalize(depth_img)
+
+        # label = self.resize_label(Image.open(os.path.join(self.path, 'label', self.sample_list[index] + '.png')))
+        # label = self.to_tensor(label)
+        # label = torch.round(label*2).long() # set to label value, then cast to long int
+        # label = label.view(self.img_height//self.output_scale, -1)
+
+        color_img = Image.open(os.path.join(self.path, 'color-input', self.sample_list[index] + '.png'))
+        color_img = np.asarray(color_img, dtype=np.float32) / 255
+        depth = Image.open(os.path.join(self.path, 'depth-input', self.sample_list[index] + '.png'))
+        depth = (np.asarray(depth, dtype=np.float32) * 65536/10000).astype(np.float32)
+        depth[depth < 0] = 0.0
+        depth[depth > 1.2] = 1.2
+        depth_img = np.array([depth, depth, depth])
+        depth_img = np.transpose(depth_img, (1, 2, 0))
+        label = Image.open(os.path.join(self.path, 'label', self.sample_list[index] + '.png'))
+        label = (np.asarray(label, dtype=np.float32) * 2 / 255).astype(np.uint8)
+
+        return [color_img, depth_img], label
+
+    def __len__(self):
+        return self.num_samples
+
 
 class SuctionDataset(Dataset):
     def __init__(self, options, data_path=None, sample_list=None):
@@ -158,4 +215,4 @@ if __name__ == "__main__":
     # testing functionality
     suction_dataset = SuctionDataset(options, data_path=options.data_path, sample_list=options.sample_path)
     rgbd, label = suction_dataset[1]
-    
+    a, b = suction_dataset[2]
