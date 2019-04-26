@@ -41,6 +41,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    options.arch = args.arch if args.arch != '' else options.arch
     options.data_path = args.data_path if args.data_path != '' else options.data_path
     options.model_path = args.checkpoint if args.checkpoint != '' else options.model_path
 
