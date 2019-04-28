@@ -4,8 +4,17 @@ import os
 import argparse
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '--result-path', default='', type=str, help='checkpoint path'
+    )
+    args = parser.parse_args()
+
+
     file_path = os.path.dirname(os.path.abspath(__file__))
     result_path = os.path.join('/'.join(file_path.split('/')[:-1]), 'result')
+    result_path = args.result_path if args.result_path else result_path
+    print(result_path)
     ave_const = 200
 
     list_dir = [a for a in sorted(os.listdir(result_path))[:-1] if os.path.isdir(os.path.join(result_path, a))]
