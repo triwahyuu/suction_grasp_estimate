@@ -1,6 +1,7 @@
 ## data loader script
 import random
 import os.path
+import time
 
 import numpy as np
 from PIL import Image
@@ -37,6 +38,30 @@ class SuctionDatasetNew(Dataset):
         self.train_epoch_idx = 1
         self.train_epoch_size = self.num_samples
 
+        ia.seed(int(time.time()))
+        self.aug_seq = iaa.OneOf([
+            iaa.Sequential([
+                iaa.Fliplr(0.5), 
+                iaa.PiecewiseAffine(scale=(0.0, 0.03)), 
+                iaa.PerspectiveTransform(scale=(0.0, 0.1))
+            ], random_order=True),
+            iaa.Sequential([
+                iaa.Flipud(0.5),
+                iaa.PiecewiseAffine(scale=(0.0, 0.03)), 
+                iaa.PerspectiveTransform(scale=(0.0, 0.1))
+            ], random_order=True),
+            iaa.Sequential([
+                iaa.Fliplr(0.25), 
+                iaa.Dropout([0.05, 0.15]),
+                iaa.PiecewiseAffine(scale=(0.0, 0.03)), 
+                iaa.PerspectiveTransform(scale=(0.0, 0.1))
+            ], random_order=True)
+        ])
+        self.iaa_resize = iaa.Resize(
+            {"height": self.img_height//self.output_scale, 
+            "width": self.img_width//self.output_scale}
+        )
+
         # transforms
         self.to_tensor = transforms.ToTensor()
         self.normalize = transforms.Normalize((0.485,0.456,0.406), (0.229,0.224,0.225))
@@ -44,31 +69,30 @@ class SuctionDatasetNew(Dataset):
             self.img_width//self.output_scale))
 
     def __getitem__(self, index):
-        # color_img = self.to_tensor(Image.open(os.path.join(self.path, 'color-input', self.sample_list[index] + '.png')))
-        # color_img = self.normalize(color_img)
-        
-        # depth = Image.open(os.path.join(self.path, 'depth-input', self.sample_list[index] + '.png'))
-        # depth = (self.to_tensor(np.asarray(depth, dtype=np.float32)) * 65536/10000).clamp(0.0, 1.2)
-        # depth_img = torch.cat([depth, depth, depth], 0)
-        # depth_img = self.normalize(depth_img)
+        seq_det = self.aug_seq.to_deterministic()
 
-        # label = self.resize_label(Image.open(os.path.join(self.path, 'label', self.sample_list[index] + '.png')))
-        # label = self.to_tensor(label)
-        # label = torch.round(label*2).long() # set to label value, then cast to long int
-        # label = label.view(self.img_height//self.output_scale, -1)
+        color = Image.open(os.path.join(self.path, 'color-input', self.sample_list[index] + '.png'))
+        color_img = np.asarray(color, dtype=np.float32) / 255
+        color_img = np.clip(seq_det.augment_image(color_img), 0.0, 1.0)
+        color_img = self.normalize(self.to_tensor(color_img))
 
-        color_img = Image.open(os.path.join(self.path, 'color-input', self.sample_list[index] + '.png'))
-        color_img = np.asarray(color_img, dtype=np.float32) / 255
         depth = Image.open(os.path.join(self.path, 'depth-input', self.sample_list[index] + '.png'))
-        depth = (np.asarray(depth, dtype=np.float32) * 65536/10000).astype(np.float32)
-        depth[depth < 0] = 0.0
-        depth[depth > 1.2] = 1.2
+        depth = (np.asarray(depth, dtype=np.float64) * 65536/10000).astype(np.float32)
         depth_img = np.array([depth, depth, depth])
         depth_img = np.transpose(depth_img, (1, 2, 0))
+        depth_img = seq_det.augment_image(depth_img)
+        depth_img = self.normalize(self.to_tensor(depth_img).clamp(0.0, 1.2))
+
         label = Image.open(os.path.join(self.path, 'label', self.sample_list[index] + '.png'))
         label = (np.asarray(label, dtype=np.float32) * 2 / 255).astype(np.uint8)
+        label_segmap = ia.SegmentationMapOnImage(label, shape=color_img.shape, nb_classes=3)
+        label_segmap = seq_det.augment_segmentation_maps([label_segmap])[0]
+        label_img = Image.fromarray((label_segmap.get_arr_int() * 255/2).astype(np.uint8))
+        label_img = self.to_tensor(self.resize_label(label_img))
+        label_img = torch.round(label_img*2).long()
+        label_img = label_img.view(self.img_height//self.output_scale, -1)
 
-        return [color_img, depth_img], label
+        return [color_img, depth_img], label_segmap
 
     def __len__(self):
         return self.num_samples
