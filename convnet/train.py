@@ -236,11 +236,11 @@ class Trainer(object):
             m.append(metrics)
             if self.iteration % 100 == 0 and self.iteration != 0:
                 m = np.mean(np.array(m), axis=0)
-                self.writer.add_scalar('train/loss', loss_data, self.iteration//100)
-                self.writer.add_scalar('train/accuracy', m[0], self.iteration//100)
-                self.writer.add_scalar('train/acc_class', m[1], self.iteration//100)
-                self.writer.add_scalar('train/mean_iu', m[2], self.iteration//100)
-                self.writer.add_scalar('train/fwacc', m[3], self.iteration//100)
+                self.writer.add_scalar('train/loss', loss_data, self.iteration//1000)
+                self.writer.add_scalar('train/accuracy', m[0], self.iteration//1000)
+                self.writer.add_scalar('train/acc_class', m[1], self.iteration//1000)
+                self.writer.add_scalar('train/mean_iu', m[2], self.iteration//1000)
+                self.writer.add_scalar('train/fwacc', m[3], self.iteration//1000)
                 m = []
 
             if self.iteration >= self.max_iter:

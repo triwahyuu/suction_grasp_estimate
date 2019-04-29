@@ -14,7 +14,6 @@ if __name__ == "__main__":
     file_path = os.path.dirname(os.path.abspath(__file__))
     result_path = os.path.join('/'.join(file_path.split('/')[:-1]), 'result')
     result_path = args.result_path if args.result_path else result_path
-    print(result_path)
     ave_const = 200
 
     list_dir = [a for a in sorted(os.listdir(result_path))[:-1] if os.path.isdir(os.path.join(result_path, a))]
