@@ -174,11 +174,11 @@ class Trainer(object):
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
                         osp.join(self.output_path, 'model_best.pth.tar'))
         
-        self.writer.add_scalar('val/loss', val_loss, self.iteration//1000)
-        self.writer.add_scalar('val/accuracy', metrics[0], self.iteration//1000)
-        self.writer.add_scalar('val/acc_class', metrics[1], self.iteration//1000)
-        self.writer.add_scalar('val/mean_iu', metrics[2], self.iteration//1000)
-        self.writer.add_scalar('val/fwacc', metrics[3], self.iteration//1000)
+        self.writer.add_scalar('val/loss', val_loss, self.iteration//100)
+        self.writer.add_scalar('val/accuracy', metrics[0], self.iteration//100)
+        self.writer.add_scalar('val/acc_class', metrics[1], self.iteration//100)
+        self.writer.add_scalar('val/mean_iu', metrics[2], self.iteration//100)
+        self.writer.add_scalar('val/fwacc', metrics[3], self.iteration//100)
 
         if not self.bn2fixed and self.training:
             self.model.train()
