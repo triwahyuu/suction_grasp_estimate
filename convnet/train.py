@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 # from apex import fp16_utils
 
-from dataset import SuctionDataset
+from dataset import SuctionDatasetNew
 from model import SuctionModel18, SuctionModel50
 from utils import label_accuracy_score
 
@@ -111,9 +111,10 @@ class Trainer(object):
         self.max_iter = max_iter
         self.best_mean_iu = 0
         self.writer = SummaryWriter(log_dir=os.path.join(log_path, 'tb'))
+        torch.manual_seed(1234)
 
     def validate(self):
-        self.model.eval()
+        # self.model.eval()
         n_class = self.train_loader.dataset.n_class
 
         os.system('play -nq -t alsa synth {} sine {}'.format(0.3, 440)) # sound an alarm
@@ -174,11 +175,11 @@ class Trainer(object):
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
                         osp.join(self.output_path, 'model_best.pth.tar'))
         
-        self.writer.add_scalar('val/loss', val_loss, self.iteration//100)
-        self.writer.add_scalar('val/accuracy', metrics[0], self.iteration//100)
-        self.writer.add_scalar('val/acc_class', metrics[1], self.iteration//100)
-        self.writer.add_scalar('val/mean_iu', metrics[2], self.iteration//100)
-        self.writer.add_scalar('val/fwacc', metrics[3], self.iteration//100)
+        self.writer.add_scalar('val/loss', val_loss, self.iteration//1000)
+        self.writer.add_scalar('val/accuracy', metrics[0], self.iteration//1000)
+        self.writer.add_scalar('val/acc_class', metrics[1], self.iteration//1000)
+        self.writer.add_scalar('val/mean_iu', metrics[2], self.iteration//1000)
+        self.writer.add_scalar('val/fwacc', metrics[3], self.iteration//1000)
 
         if not self.bn2fixed and self.training:
             self.model.train()
@@ -236,11 +237,11 @@ class Trainer(object):
             m.append(metrics)
             if self.iteration % 100 == 0 and self.iteration != 0:
                 m = np.mean(np.array(m), axis=0)
-                self.writer.add_scalar('train/loss', loss_data, self.iteration//1000)
-                self.writer.add_scalar('train/accuracy', m[0], self.iteration//1000)
-                self.writer.add_scalar('train/acc_class', m[1], self.iteration//1000)
-                self.writer.add_scalar('train/mean_iu', m[2], self.iteration//1000)
-                self.writer.add_scalar('train/fwacc', m[3], self.iteration//1000)
+                self.writer.add_scalar('train/loss', loss_data, self.iteration//100)
+                self.writer.add_scalar('train/accuracy', m[0], self.iteration//100)
+                self.writer.add_scalar('train/acc_class', m[1], self.iteration//100)
+                self.writer.add_scalar('train/mean_iu', m[2], self.iteration//100)
+                self.writer.add_scalar('train/fwacc', m[3], self.iteration//100)
                 m = []
 
             if self.iteration >= self.max_iter:
@@ -318,10 +319,13 @@ if __name__ == "__main__":
 
 
     ## dataset
-    train_dataset = SuctionDataset(options)
-    train_loader = DataLoader(train_dataset, batch_size=options.batch_size,\
+    train_dataset = SuctionDatasetNew(options, mode='train')
+    train_loader = DataLoader(train_dataset, batch_size=options.batch_size,
         shuffle=options.shuffle, num_workers=3)
-    val_dataset = SuctionDataset(options, sample_list=os.path.join(options.data_path, 'test-split.txt'))
+
+    val_dataset = SuctionDatasetNew(options, 
+        sample_list=os.path.join(options.data_path, 'test-split.txt'),
+        mode='val')
     val_loader = DataLoader(val_dataset, batch_size=options.batch_size,\
         shuffle=False, num_workers=3)
 

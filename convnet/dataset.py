@@ -22,11 +22,12 @@ class Struct:
             setattr(self, k, v)
 
 class SuctionDatasetNew(Dataset):
-    def __init__(self, options, data_path=None, sample_list=None):
+    def __init__(self, options, data_path=None, sample_list=None, mode='train'):
         self.path = data_path if data_path != None else options.data_path
         self.output_scale = options.output_scale
         self.img_height = options.img_height
         self.img_width = options.img_width
+        self.mode = mode
         
         ## data samples
         sample_path = sample_list if sample_list != None else options.sample_path
@@ -72,27 +73,39 @@ class SuctionDatasetNew(Dataset):
         seq_det = self.aug_seq.to_deterministic()
 
         color = Image.open(os.path.join(self.path, 'color-input', self.sample_list[index] + '.png'))
-        color_img = np.asarray(color, dtype=np.float32) / 255
-        color_img = np.clip(seq_det.augment_image(color_img), 0.0, 1.0)
-        color_img = self.normalize(self.to_tensor(color_img))
-
         depth = Image.open(os.path.join(self.path, 'depth-input', self.sample_list[index] + '.png'))
-        depth = (np.asarray(depth, dtype=np.float64) * 65536/10000).astype(np.float32)
-        depth_img = np.array([depth, depth, depth])
-        depth_img = np.transpose(depth_img, (1, 2, 0))
-        depth_img = seq_det.augment_image(depth_img)
-        depth_img = self.normalize(self.to_tensor(depth_img).clamp(0.0, 1.2))
-
         label = Image.open(os.path.join(self.path, 'label', self.sample_list[index] + '.png'))
-        label = (np.asarray(label, dtype=np.float32) * 2 / 255).astype(np.uint8)
-        label_segmap = ia.SegmentationMapOnImage(label, shape=color_img.shape, nb_classes=3)
-        label_segmap = seq_det.augment_segmentation_maps([label_segmap])[0]
-        label_img = Image.fromarray((label_segmap.get_arr_int() * 255/2).astype(np.uint8))
-        label_img = self.to_tensor(self.resize_label(label_img))
-        label_img = torch.round(label_img*2).long()
-        label_img = label_img.view(self.img_height//self.output_scale, -1)
+        
+        if self.mode == 'train':
+            color_img = np.asarray(color, dtype=np.float32) / 255
+            color_img = np.clip(seq_det.augment_image(color_img), 0.0, 1.0)
+            color_img = self.normalize(self.to_tensor(color_img))
 
-        return [color_img, depth_img], label_segmap
+            depth_img = (np.asarray(depth, dtype=np.float64) * 65536/10000).astype(np.float32)
+            depth_img = np.array([depth, depth, depth])
+            depth_img = np.transpose(depth_img, (1, 2, 0))
+            depth_img = seq_det.augment_image(depth_img)
+            depth_img = self.normalize(self.to_tensor(depth_img).clamp(0.0, 1.2))
+            
+            label = (np.asarray(label, dtype=np.float32) * 2 / 255).astype(np.uint8)
+            label_segmap = ia.SegmentationMapOnImage(label, shape=color_img.shape, nb_classes=3)
+            label_segmap = seq_det.augment_segmentation_maps([label_segmap])[0]
+            label_img = Image.fromarray((label_segmap.get_arr_int() * 255/2).astype(np.uint8))
+            label_img = self.to_tensor(self.resize_label(label_img))
+            label_img = torch.round(label_img*2).long()
+            label_img = label_img.view(self.img_height//self.output_scale, -1)
+
+        elif self.mode == 'val':
+            color_img = self.normalize(self.to_tensor(color_img))
+            
+            depth_img = (self.to_tensor(np.asarray(depth, dtype=np.float32)) * 65536/10000).clamp(0.0, 1.2)
+            depth_img = torch.cat([depth, depth, depth], 0)
+            depth_img = self.normalize(depth_img)
+
+            label_img = self.to_tensor(self.resize_label(label))
+            label_img = torch.round(label_img*2).long() # set to segmentation map value
+            label_img = label_img.view(self.img_height//self.output_scale, -1)
+        return [color_img, depth_img], label_img
 
     def __len__(self):
         return self.num_samples
