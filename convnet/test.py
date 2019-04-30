@@ -18,7 +18,7 @@ class Struct:
 if __name__ == "__main__":
     options = Struct(\
         data_path = '/home/tri/skripsi/dataset/',
-        sample_path = '/home/tri/skripsi/dataset/test-split.txt',
+        sample_path = '/home/tri/skripsi/dataset/train-split.txt',
         img_height =  480,
         img_width = 640,
         batch_size = 4,
@@ -29,10 +29,14 @@ if __name__ == "__main__":
     )
 
     # testing functionality
-    suction_dataset = SuctionDatasetNew(options, data_path=options.data_path, sample_list=options.sample_path)
-
-    rgbd, label = suction_dataset[0]
-    rgbd1, label1 = suction_dataset[1]
+    suction_dataset = SuctionDatasetNew(options, 
+        data_path=options.data_path, 
+        sample_list=options.sample_path,
+        mode='train')
+    
+    l = len(suction_dataset)
+    for i in range(l):
+        rgbd, label = suction_dataset[i]
 
     # ia.seed(int(time.time()))
 
