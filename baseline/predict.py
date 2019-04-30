@@ -70,13 +70,11 @@ def predict(color_input, color_bg, depth_input, depth_bg, camera_intrinsic):
     pix_y = np.round((input_points[:,1] * camera_intrinsic[1][1] / input_points[:,2] + cam_intrinsic[1][2]))
 
     surface_normals_map = np.zeros(color_input.shape)
-    n = 0
-    for x,y in zip(pix_x, pix_y):
+    for n, (x,y) in enumerate(zip(pix_x, pix_y)):
         x,y = int(x), int(y)
         surface_normals_map[y,x,0] = pcd_normals[n,0]
         surface_normals_map[y,x,1] = pcd_normals[n,1]
         surface_normals_map[y,x,2] = pcd_normals[n,2]
-        n += 1
         
     ## Compute standard deviation of local normals
     mean_std_norms = np.mean(stdev_filter(surface_normals_map, 25), axis=2)
@@ -86,9 +84,6 @@ def predict(color_input, color_bg, depth_input, depth_bg, camera_intrinsic):
     return surface_normals_map, affordance_map
 
 if __name__ == "__main__":
-    plt.ion()
-    plt.show()
-
     data_path = '/home/tri/skripsi/dataset/'
     df = open(data_path + 'test-split.txt')
     data = df.read().splitlines()
@@ -143,6 +138,17 @@ if __name__ == "__main__":
         plt.yticks([]); plt.xticks([])
         plt.draw()
         plt.pause(0.01)
+        
+        # fig1, ax1 = plt.subplots()
+        # fig1.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
+        # ax1.imshow(rgb_in)
+        # ax1.set_axis_off()
+
+        # fig2, ax2 = plt.subplots()
+        # fig2.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
+        # ax2.imshow(score)
+        # ax2.set_axis_off()
+        # plt.show()
     
     ## save the result and calculate overal precision and recall
     np.savetxt('result.txt', result, fmt='%.10f')
