@@ -96,11 +96,11 @@ class SuctionDatasetNew(Dataset):
             label_img = label_img.view(self.img_height//self.output_scale, -1)
 
         elif self.mode == 'val':
-            color_img = self.normalize(self.to_tensor(color_img))
+            color_img = self.normalize(self.to_tensor(color))
             
             depth_img = np.asarray(depth, dtype=np.float32)
             depth_img = (self.to_tensor(depth_img) * 65536/10000).clamp(0.0, 1.2)
-            depth_img = torch.cat([depth, depth, depth], 0)
+            depth_img = torch.cat([depth_img, depth_img, depth_img], 0)
             depth_img = self.normalize(depth_img)
 
             label_img = self.to_tensor(self.resize_label(label))

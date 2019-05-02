@@ -1,5 +1,8 @@
 from PIL import Image
 import numpy as np
+import tqdm
+import argparse
+
 import open3d
 from scipy.ndimage.filters import generic_filter
 from scipy.ndimage.filters import uniform_filter
@@ -84,14 +87,22 @@ def predict(color_input, color_bg, depth_input, depth_bg, camera_intrinsic):
     return surface_normals_map, affordance_map
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '--datapath', dest='data_path', default='', help='suction grasp dataset path',
+    )
+    args = parser.parse_args()
+
     data_path = '/home/tri/skripsi/dataset/'
+    data_path = args.data_path if args.data_path != '' else data_path
     df = open(data_path + 'test-split.txt')
     data = df.read().splitlines()
     
     result = np.zeros((len(data), 4))
     plt.ion()
     plt.show()
-    for n,fname in enumerate(data):
+    for n,fname in tqdm.tqdm(enumerate(data), total=len(data), 
+            desc='Processing', ncols=80):
         print(fname, end='\t')
 
         ## load the datasets
