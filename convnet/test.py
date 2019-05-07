@@ -29,14 +29,33 @@ if __name__ == "__main__":
     )
 
     # testing functionality
-    suction_dataset = SuctionDatasetNew(options, 
+    train_dataset = SuctionDatasetNew(options, 
         data_path=options.data_path, 
         sample_list=options.sample_path,
         mode='train')
+    val_dataset = SuctionDatasetNew(options, 
+        data_path=options.data_path, 
+        sample_list=options.sample_path,
+        mode='val')
     
-    l = len(suction_dataset)
-    for i in range(l):
-        rgbd, label = suction_dataset[i]
+    fig, axes = plt.subplots(nrows=5, ncols=5)
+    fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
+    fig.patch.set_visible(False)
+    for i in range(5):
+        rgbd, label = train_dataset[0]
+        rgbd_val, label_val = val_dataset[0]
+
+        axes[i][0].imshow(rgbd_val[0])
+        axes[i][0].set_axis_off()
+        axes[i][1].imshow(label_val)
+        axes[i][1].set_axis_off()
+        axes[i][2].imshow(rgbd[0])
+        axes[i][2].set_axis_off()
+        axes[i][3].imshow(label.draw(size=rgbd[0].shape[:-1]))
+        axes[i][3].set_axis_off()
+        axes[i][4].imshow(label.draw_on_image(np.asarray(rgbd_val[0]*255, dtype=np.uint8)))
+        axes[i][4].set_axis_off()
+    plt.show()
 
     # ia.seed(int(time.time()))
 
@@ -60,9 +79,8 @@ if __name__ == "__main__":
     # fig, axes = plt.subplots(nrows=5, ncols=5)
     # fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
     # fig.patch.set_visible(False)
-    # for i, (image_aug, segmap_aug) in enumerate(zip(rgbds_aug, labels_aug)):
-    #     label = np.array(segmap_aug.get_arr_int(), dtype=np.float32) / 2
-    #     axes[i][0].imshow(rgbd[0])
+    # for i in range(5):
+    #     axes[i][0].imshow(rgbd_val[0])
     #     axes[i][0].set_axis_off()
     #     axes[i][1].imshow(image_aug[0])
     #     axes[i][1].set_axis_off()
@@ -72,6 +90,4 @@ if __name__ == "__main__":
     #     axes[i][3].set_axis_off()
     #     axes[i][4].imshow(segmap_aug.draw_on_image(np.asarray(image_aug[0]*255, dtype=np.uint8)))
     #     axes[i][4].set_axis_off()
-    #     label_aug = segmap_aug.get_arr_int()
-    #     a = label_aug
     # plt.show()

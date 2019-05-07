@@ -58,10 +58,6 @@ class SuctionDatasetNew(Dataset):
                 iaa.PerspectiveTransform(scale=(0.0, 0.1))
             ], random_order=True)
         ])
-        self.iaa_resize = iaa.Resize(
-            {"height": self.img_height//self.output_scale, 
-            "width": self.img_width//self.output_scale}
-        )
 
         # transforms
         self.to_tensor = transforms.ToTensor()

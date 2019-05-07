@@ -18,13 +18,28 @@ class Struct:
         
 options = Struct(\
     data_path = '/home/tri/skripsi/dataset/',
-    model_path = '/home/tri/skripsi/suction_grasp_estimate/result/20190412_205337/checkpoint.pth.tar',
+    model_path = '/home/tri/skripsi/suction_grasp_estimate/result/20190501_233211/model_best.pth.tar',
     img_height =  480,
     img_width = 640,
     output_scale = 8,
     arch = 'resnet18',
     device = 'cuda:0'
 )
+
+def prepare_input(color, depth, device):
+    to_tensor = ToTensor()
+    normalize = Normalize((0.485,0.456,0.406), (0.229,0.224,0.225))
+
+    color_img = normalize(to_tensor(color))
+    color_img = color_img.view(1, color_img.size(0), color_img.size(1), color_img.size(2))
+
+    depth = (to_tensor(np.asarray(depth, dtype=np.float32)) * 65536/10000).clamp(0.0, 1.2)
+    depth_img = torch.cat([depth, depth, depth], 0)
+    depth_img = normalize(depth_img)
+    depth_img = depth_img.view(1, depth_img.size(0), depth_img.size(1), depth_img.size(2))
+
+    img_input = [color_img.to(device), depth_img.to(device)]
+    return img_input
 
 if __name__ == "__main__":
     model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
@@ -61,18 +76,12 @@ if __name__ == "__main__":
 
     ## get the image input
     # color_img = to_tensor(Image.open(os.path.join(options.data_path, 'test', 'test-image.color.png')))
-    color_img = to_tensor(Image.open(os.path.join(options.data_path, 'color-input', '001059-0.png')))
-    color_img = normalize(color_img)
-    color_img = color_img.view(1, color_img.size(0), color_img.size(1), color_img.size(2))
+    color = Image.open(os.path.join(options.data_path, 'color-input', '001059-0.png'))
 
     # depth = Image.open(os.path.join(options.data_path, 'test', 'test-image.depth.png'))
     depth = Image.open(os.path.join(options.data_path, 'depth-input', '001059-0.png'))
-    depth = (to_tensor(np.asarray(depth, dtype=np.float32)) * 65536/10000).clamp(0.0, 1.2)
-    depth_img = torch.cat([depth, depth, depth], 0)
-    depth_img = normalize(depth_img)
-    depth_img = depth_img.view(1, depth_img.size(0), depth_img.size(1), depth_img.size(2))
 
-    img_input = [color_img.to(options.device), depth_img.to(options.device)]
+    img_input = prepare_input(color, depth, options.device)
 
     ## inference
     print('computing forward pass...')
