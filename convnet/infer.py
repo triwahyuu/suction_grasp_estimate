@@ -3,6 +3,7 @@ from vis_util import post_process, visualize
 from model import SuctionModel18, SuctionModel50
 import os
 import argparse
+import time
 
 import torch
 from torchvision.transforms import ToTensor, Normalize, Resize
@@ -11,6 +12,9 @@ from PIL import Image
 from skimage.transform import resize
 from scipy.ndimage import gaussian_filter
 
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
 class Struct:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
@@ -18,7 +22,7 @@ class Struct:
         
 options = Struct(\
     data_path = '/home/tri/skripsi/dataset/',
-    model_path = '/home/tri/skripsi/suction_grasp_estimate/result/20190501_233211/model_best.pth.tar',
+    model_path = '/home/tri/skripsi/result/04_resnet18_dropout/20190429_222828/model_best.pth.tar',
     img_height =  480,
     img_width = 640,
     output_scale = 8,
@@ -55,6 +59,7 @@ if __name__ == "__main__":
         '--checkpoint', default='', help='suction grasp dataset path',
     )
     args = parser.parse_args()
+    # np.random.seed(time.time())
 
     options.arch = args.arch if args.arch != '' else options.arch
     options.data_path = args.data_path if args.data_path != '' else options.data_path
@@ -71,46 +76,46 @@ if __name__ == "__main__":
         model = SuctionModel50(options)
     checkpoint = torch.load(options.model_path)
     model.load_state_dict(checkpoint['model_state_dict'])
-    model.to(options.device)
+    
     model.eval()
+    model.to(options.device)
 
-    ## get the image input
+    ## get random image input
+    sample_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
+    input_file = np.random.choice(sample_list, 1)[0]
     # color_img = to_tensor(Image.open(os.path.join(options.data_path, 'test', 'test-image.color.png')))
-    color = Image.open(os.path.join(options.data_path, 'color-input', '001059-0.png'))
-
+    color = Image.open(os.path.join(options.data_path, 'color-input', input_file + '.png'))
     # depth = Image.open(os.path.join(options.data_path, 'test', 'test-image.depth.png'))
-    depth = Image.open(os.path.join(options.data_path, 'depth-input', '001059-0.png'))
+    depth = Image.open(os.path.join(options.data_path, 'depth-input', input_file + '.png'))
 
     img_input = prepare_input(color, depth, options.device)
 
     ## inference
-    print('computing forward pass...')
+    print('computing forward pass: ', input_file)
     output = model(img_input)
-    output = output.float().cpu().detach().numpy()
-    output = output.reshape(output.shape[1:])
-    output = np.transpose(output, (1, 2, 0))
-    output = resize(output, (options.img_height, options.img_width), 
+
+    cls_pred = np.squeeze(output.data.max(1)[1].cpu().numpy(), axis=0)
+    cls_pred = cls_pred.astype(np.float64)
+    cls_pred = resize(cls_pred, (options.img_height, options.img_width), 
         anti_aliasing=True, mode='reflect')
 
-    affordance = output[:,:,1]
-    affordance[affordance >= 1] = 0.9999 # normalize
-    affordance[affordance < 0] = 0
+    pred = np.squeeze(output.data.cpu().numpy(), axis=0)[1,:,:]
+    pred = resize(pred, (options.img_height, options.img_width), 
+        anti_aliasing=True, mode='reflect')
+    affordance = (pred - pred.min()) / (pred.max() - pred.min())
+    # affordance[affordance >= 1] = 0.9999 # normalize
+    # affordance[affordance < 0] = 0
 
     ## visualize
     print('post process...')
-    # rgb_in = Image.open(os.path.join(options.data_path, 'test', 'test-image.color.png'))
-    # rgb_bg = Image.open(os.path.join(options.data_path, 'test', 'test-background.color.png'))
-    # depth_in = Image.open(os.path.join(options.data_path, 'test', 'test-image.depth.png'))
-    # depth_bg = Image.open(os.path.join(options.data_path, 'test', 'test-background.depth.png'))
-    # cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'test', 'test-camera-intrinsics.txt'))
-    rgb_in = Image.open(os.path.join(options.data_path, 'color-input', '001059-0.png'))
-    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', '001059-0.png'))
-    depth_in = Image.open(os.path.join(options.data_path, 'depth-input', '001059-0.png'))
-    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', '001059-0.png'))
-    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', '001059-0.txt'))
+    rgb_in = Image.open(os.path.join(options.data_path, 'color-input', input_file + '.png'))
+    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', input_file + '.png'))
+    depth_in = Image.open(os.path.join(options.data_path, 'depth-input', input_file + '.png'))
+    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', input_file + '.png'))
+    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', input_file + '.txt'))
 
-    surface_norm, affordance_map = post_process(affordance, rgb_in, rgb_bg,
+    surface_norm, affordance_map, cls_pred = post_process(affordance, cls_pred, rgb_in, rgb_bg,
         depth_in, depth_bg, cam_intrinsic)
     
     print('visualize...')
-    visualize(affordance_map, surface_norm, np.array(rgb_in))
+    visualize(affordance_map, surface_norm, cls_pred, np.array(rgb_in))
