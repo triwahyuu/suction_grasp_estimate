@@ -54,7 +54,7 @@ def BNtoFixed(m):
     # From https://github.com/KaiyangZhou/deep-person-reid/blob/master/torchreid/utils/torchtools.py
     # 1. no update for running mean and var
     # 2. scale and shift parameters are still trainable
-    if type(m) == nn.BatchNorm2d:
+    if m.__class__.__name__.find('BatchNorm2d') != -1:
         m.eval()
 
 
@@ -76,7 +76,6 @@ class Trainer(object):
             self.criterion = self.criterion.cuda()
 
         self.timestamp_start = datetime.datetime.now(pytz.timezone('Asia/Jakarta'))
-        self.bn2fixed = True
         self.training = False
 
         
@@ -114,7 +113,7 @@ class Trainer(object):
         torch.manual_seed(1234)
 
     def validate(self):
-        # self.model.eval()
+        self.model.eval()
         n_class = self.train_loader.dataset.n_class
 
         os.system('play -nq -t alsa synth {} sine {}'.format(0.3, 440)) # sound an alarm
@@ -181,11 +180,11 @@ class Trainer(object):
         self.writer.add_scalar('val/mean_iu', metrics[2], self.iteration//1000)
         self.writer.add_scalar('val/fwacc', metrics[3], self.iteration//1000)
 
-        if not self.bn2fixed and self.training:
+        if self.training:
             self.model.train()
 
     def train_epoch(self):
-        if not self.bn2fixed and self.training:
+        if self.training:
             self.model.train()
 
         n_class = self.train_loader.dataset.n_class

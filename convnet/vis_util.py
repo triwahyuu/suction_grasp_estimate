@@ -49,12 +49,14 @@ def visualize(affordance_map, surface_normals_map, class_pred, color_input):
     ## class prediction
     fig, ax = plt.subplots()
     fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
+    fig.canvas.set_window_title('Class Prediction')
     ax.imshow(cls_img)
     ax.set_axis_off()
 
     ## affordance map overlaid
     fig1, ax1 = plt.subplots()
     fig1.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
+    fig1.canvas.set_window_title('Affordance Map')
     ax1.imshow(img)
     ax1.add_patch(max_circ)
     ax1.set_axis_off()
@@ -62,6 +64,7 @@ def visualize(affordance_map, surface_normals_map, class_pred, color_input):
     ## surface normal
     fig2, ax2 = plt.subplots()
     fig2.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
+    fig2.canvas.set_window_title('Surface Normals')
     ax2.imshow(surface_normals_map)
     ax2.set_axis_off()
 
