@@ -29,6 +29,7 @@ class Options(object):
         self.output_scale = 8
         self.arch = 'resnet18'
         self.device = 'cuda:0'
+        self.visualize = False # don't visualize it, there is a memory bug on matplotlib
 
 if __name__ == "__main__":
     model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
@@ -51,11 +52,15 @@ if __name__ == "__main__":
     options.model_path = args.checkpoint if args.checkpoint != '' else options.model_path
 
     ## prepare plotting canvas
-    plt.ion()
-    plt.show()
-    fig, ax = plt.subplots(2,3)
-    fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
-    fig.canvas.set_window_title('Evaluation Result')
+    if options.visualize:
+        plt.ion()
+        plt.show()
+        fig = plt.gcf()
+        fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
+        fig.canvas.set_window_title('Evaluation Result')
+        # fig, ax = plt.subplots(2,3)
+        # fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
+        # fig.canvas.set_window_title('Evaluation Result')
 
     ## prepare model
     if args.arch == 'resnet18' or args.arch == 'resnet34':
@@ -71,7 +76,7 @@ if __name__ == "__main__":
     test_img_list = open(options.test_img_path).read().splitlines()
     test_len = len(test_img_list)
 
-    metrics_data = np.zeros(4)  # [tp, tn, fp, fn]
+    metrics_data = np.zeros((test_len, 4), dtype=np.int64)  # [tp, tn, fp, fn]
     metrics = np.zeros((test_len, 2))       # [precision, recall]
     for n, input_path in enumerate(test_img_list):
         print(input_path, "%d/%d: " % (n, test_len), end='  ')
@@ -107,6 +112,7 @@ if __name__ == "__main__":
             (surface_norm.min(), surface_norm.max()), (0.0, 1.0))
         color_in = np.asarray(color_in, dtype=np.float64) / 255
 
+        ## calculate metrics
         affordance_img = (affordance_map * 255).astype(np.uint8)
         label_np = np.asarray(label, dtype=np.uint8)
         threshold = np.percentile(affordance_img, 99)
@@ -117,44 +123,66 @@ if __name__ == "__main__":
 
         precision = tp/(tp + fp)
         recall = tp/(tp + fn)
-        metrics_data += np.array([tp, tn, fp, fn])
+        metrics_data[n,:] = np.array([tp, tn, fp, fn])
         metrics[n,:] = np.array([precision, recall])
         print("%.8f  %.8f" % (precision, recall))
 
         ## visualize
-        cmap = cm.get_cmap('jet')
-        affordance_color = cmap(affordance_map)[:,:,:-1] # ommit last channel (get rgb)
-        affordance_viz = affordance_color*0.5 + color_in*0.5
+        if options.visualize:
+            cmap = cm.get_cmap('jet')
+            affordance_color = cmap(affordance_map)[:,:,:-1] # ommit last channel (get rgb)
+            affordance_viz = affordance_color*0.5 + color_in*0.5
 
-        cmap_cls = cm.get_cmap('Paired')
-        cls_img = cmap_cls(cls_pred)[:,:,:-1]
-        cls_img = cls_img*0.5 + color_in*0.5
+            cmap_cls = cm.get_cmap('Paired')
+            cls_img = cmap_cls(cls_pred)[:,:,:-1]
+            cls_img = cls_img*0.5 + color_in*0.5
 
-        ## best picking point
-        max_point = np.argmax(affordance_map)
-        max_point = (max_point//affordance_color.shape[1], max_point%affordance_color.shape[1])
-        max_circ = patches.Circle(np.flip(max_point), radius=8, fill=False, linewidth=4.0, color='k')
+            ## best picking point
+            max_point = np.argmax(affordance_map)
+            max_point = (max_point//affordance_color.shape[1], max_point%affordance_color.shape[1])
+            max_circ = patches.Circle(np.flip(max_point), radius=8, fill=False, linewidth=4.0, color='k')
 
-        depth_np = np.array(depth_in, dtype=np.float64) / 65536
-        
-        ax[0, 0].imshow(color_in)
-        ax[1, 0].imshow(label_np)
-        ax[0, 1].imshow(affordance_viz)
-        ax[1, 1].imshow(cls_img)
-        ax[0, 2].imshow(surface_norm)
-        ax[1, 2].imshow(depth_np, cmap='gray')
-        ax[0, 0].set_axis_off()
-        ax[0, 1].set_axis_off()
-        ax[0, 2].set_axis_off()
-        ax[1, 0].set_axis_off()
-        ax[1, 1].set_axis_off()
-        ax[1, 2].set_axis_off()
-        
-        fig.canvas.draw()
-        fig.canvas.flush_events()
+            depth_np = np.array(depth_in, dtype=np.float64) / 65536
+            plt.subplot(2,3,1)
+            plt.imshow(color_in)
+            plt.yticks([]); plt.xticks([])
+            plt.subplot(2,3,2)
+            plt.imshow(affordance_viz)
+            plt.yticks([]); plt.xticks([])
+            plt.subplot(2,3,3)
+            plt.imshow(surface_norm)
+            plt.yticks([]); plt.xticks([])
+            plt.subplot(2,3,4)
+            plt.imshow(label_np)
+            plt.yticks([]); plt.xticks([])
+            plt.subplot(2,3,5)
+            plt.imshow(cls_img)
+            plt.yticks([]); plt.xticks([])
+            plt.subplot(2,3,6)
+            plt.imshow(depth_np)
+            plt.yticks([]); plt.xticks([])
+            plt.draw()
+            plt.pause(0.01)
+            
+            # ax[0, 0].imshow(color_in)
+            # ax[1, 0].imshow(label_np)
+            # ax[0, 1].imshow(affordance_viz)
+            # ax[1, 1].imshow(cls_img)
+            # ax[0, 2].imshow(surface_norm)
+            # ax[1, 2].imshow(depth_np, cmap='gray')
+            # ax[0, 0].set_axis_off()
+            # ax[0, 1].set_axis_off()
+            # ax[0, 2].set_axis_off()
+            # ax[1, 0].set_axis_off()
+            # ax[1, 1].set_axis_off()
+            # ax[1, 2].set_axis_off()
+            # fig.canvas.draw()
+            # fig.canvas.flush_events()
     
-    s = metrics_data
+    metrics_data[np.isnan(metrics_data)] = 0
+    s = np.sum(metrics_data, axis=0)
     precision = s[0]/(s[0]+s[1])
     recall = s[0]/(s[0]+s[3])
-    np.savetxt('result.txt', metrics, fmt='%.10f')
+    result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result.txt')
+    np.savetxt(result_path, metrics_data, fmt='%.10f')
     print(precision, recall)

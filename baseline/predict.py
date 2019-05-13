@@ -102,9 +102,9 @@ if __name__ == "__main__":
     
     plt.ion()
     plt.show()
-    fig, ax = plt.subplots(1,3)
+    fig = plt.gcf()
     fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
-    fig.canvas.set_window_title('Evaluation Result')
+    fig.canvas.set_window_title('Baseline Prediction Result')
 
     for n,fname in tqdm.tqdm(enumerate(data), total=len(data), 
             desc='Processing', ncols=80):
@@ -143,12 +143,17 @@ if __name__ == "__main__":
 
         ## visualize
         rgb_in_np = np.asarray(rgb_in, dtype=np.uint8)
-        ax[0].imshow(rgb_in_np)
-        ax[1].imshow(score)
-        ax[2].imshow(label_np)
-        ax[0].set_axis_off()
-        ax[1].set_axis_off()
-        ax[2].set_axis_off()
+        plt.subplot(1,3,1)
+        plt.imshow(rgb_in_np)
+        plt.yticks([]); plt.xticks([])
+        plt.subplot(1,3,2)
+        plt.imshow(score)
+        plt.yticks([]); plt.xticks([])
+        plt.subplot(1,3,3)
+        plt.imshow(label_np)
+        plt.yticks([]); plt.xticks([])
+        plt.draw()
+        plt.pause(0.01)
 
         plt.draw()
         plt.pause(0.01)
