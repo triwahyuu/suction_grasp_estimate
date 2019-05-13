@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 baseline/*.txt
+convnet/*.txt
 
 result/
 .vscode/
