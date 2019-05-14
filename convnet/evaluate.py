@@ -73,7 +73,7 @@ if __name__ == "__main__":
     model.eval()
     model.to(options.device)
 
-    test_img_list = open(options.test_img_path).read().splitlines()
+    test_img_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
     test_len = len(test_img_list)
 
     metrics_data = np.zeros((test_len, 4), dtype=np.int64)  # [tp, tn, fp, fn]
@@ -181,8 +181,10 @@ if __name__ == "__main__":
     
     metrics_data[np.isnan(metrics_data)] = 0
     s = np.sum(metrics_data, axis=0)
-    precision = s[0]/(s[0]+s[1])
+    precision = s[0]/(s[0]+s[2])
     recall = s[0]/(s[0]+s[3])
     result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result.txt')
+    resultm_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result_metrics.txt')
     np.savetxt(result_path, metrics_data, fmt='%.10f')
+    np.savetxt(resultm_path, metrics, fmt='%.10f')
     print(precision, recall)

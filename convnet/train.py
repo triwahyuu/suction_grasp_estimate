@@ -1,8 +1,5 @@
 ## TODO:
-## - data logging with tensorboard
-# https://github.com/foolwood/deepmask-pytorch/blob/master/tools/train.py
-# http://www.erogol.com/use-tensorboard-pytorch/
-## - optimize data logging:
+## - optimize data loading: (later)
 # https://github.com/NVIDIA/DALI/blob/master/docs/examples/pytorch/resnet50/main.py
 # https://github.com/NVIDIA/apex/blob/master/examples/imagenet/main_amp.py
 # https://discuss.pytorch.org/t/how-to-speed-up-the-data-loader/13740
@@ -31,24 +28,20 @@ import datetime
 import tqdm
 import argparse
 
-class Struct:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-        
-options = Struct(\
-        data_path = '/home/tri/skripsi/dataset/',
-        sample_path = '/home/tri/skripsi/dataset/train-split.txt',
-        img_height =  480,
-        img_width = 640,
-        batch_size = 2,
-        n_class = 3,
-        output_scale = 8,
-        shuffle = True,
-        learning_rate = 0.001,
-        momentum = 0.99,
-        arch = 'resnet18'
-    )
+class Options:
+    def __init__(self):
+        self.data_path = '/home/tri/skripsi/dataset/'
+        self.sample_path = '/home/tri/skripsi/dataset/train-split.txt'
+        self.img_height =  480
+        self.img_width = 640
+        self.batch_size = 2
+        self.n_class = 3
+        self.output_scale = 8
+        self.shuffle = True
+        self.learning_rate = 0.001
+        self.momentum = 0.99
+        self.arch = 'resnet18'
+
 
 def BNtoFixed(m):
     # From https://github.com/KaiyangZhou/deep-person-reid/blob/master/torchreid/utils/torchtools.py
@@ -283,6 +276,7 @@ if __name__ == "__main__":
         '--use-cpu', dest='use_cpu', action='store_true', help='use cpu on training',
     )
     args = parser.parse_args()
+    options = Options()
 
     file_path = osp.dirname(osp.abspath(__file__))
     result_path = '/home/tri/skripsi/suction_grasp_estimate/result'
