@@ -36,6 +36,9 @@ if __name__ == "__main__":
     parser.add_argument(
         '--checkpoint', default='', help='model path',
     )
+    parser.add_argument(
+        '--img_input', default='', help='input image index, eg: 00001-1',
+    )
     args = parser.parse_args()
     np.random.seed(int(time.time()))
 
@@ -55,9 +58,9 @@ if __name__ == "__main__":
     model.eval()
     model.to(options.device)
 
-    ## get random image input
+    ## get random or user selected image input 
     sample_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
-    input_file = np.random.choice(sample_list, 1)[0]
+    input_file = np.random.choice(sample_list, 1)[0] if args.img_input == '' else args.img_input
     color = Image.open(os.path.join(options.data_path, 'color-input', input_file + '.png'))
     depth = Image.open(os.path.join(options.data_path, 'depth-input', input_file + '.png'))
 

@@ -53,7 +53,7 @@ if __name__ == "__main__":
         axes[i][2].set_axis_off()
         axes[i][3].imshow(label.draw(size=rgbd[0].shape[:-1]))
         axes[i][3].set_axis_off()
-        axes[i][4].imshow(label.draw_on_image(np.asarray(rgbd_val[0]*255, dtype=np.uint8)))
+        axes[i][4].imshow(label.draw_on_image(np.asarray(rgbd[0]*255, dtype=np.uint8)))
         axes[i][4].set_axis_off()
     plt.show()
 
