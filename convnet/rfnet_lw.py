@@ -1,19 +1,25 @@
 ## Suction Model using RefineNet as the backbone
-## Modified from original implementation of RefineNet Paper
-## https://github.com/DrSleep/refinenet-pytorch/blob/master/models/resnet.py
-## https://arxiv.org/abs/1611.06612
+## Modified from original implementation of Light Weight RefineNet Paper
+## https://github.com/DrSleep/light-weight-refinenet/blob/master/models/resnet.py
+## https://arxiv.org/abs/1810.03272
 
-"""RefineNet
-RefineNet PyTorch for non-commercial purposes
+"""RefineNet-LightWeight
+
+RefineNet-LigthWeight PyTorch for non-commercial purposes
+
 Copyright (c) 2018, Vladimir Nekrasov (vladimir.nekrasov@adelaide.edu.au)
 All rights reserved.
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
+
 * Redistributions of source code must retain the above copyright notice, this
   list of conditions and the following disclaimer.
+
 * Redistributions in binary form must reproduce the above copyright notice,
   this list of conditions and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
+
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -91,6 +97,9 @@ class RCUBlock(nn.Module):
         return x
 
 
+stages_suffixes = {0 : '_conv',
+                   1 : '_conv_relu_varout_dimred'}
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -162,10 +171,11 @@ class Bottleneck(nn.Module):
         return out
 
 
-class RefineNet(nn.Module):
+class RefineNetLW(nn.Module):
+
     def __init__(self, block, layers, num_classes=21):
         self.inplanes = 64
-        super(RefineNet, self).__init__()
+        super(RefineNetLW, self).__init__()
         self.do = nn.Dropout(p=0.5)
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
@@ -176,40 +186,28 @@ class RefineNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-        self.p_ims1d2_outl1_dimred = conv3x3(2048, 512, bias=False)
-        self.adapt_stage1_b = self._make_rcu(512, 512, 2, 2)
+        self.p_ims1d2_outl1_dimred = conv1x1(2048, 512, bias=False)
         self.mflow_conv_g1_pool = self._make_crp(512, 512, 4)
-        self.mflow_conv_g1_b = self._make_rcu(512, 512, 3, 2)
-        self.mflow_conv_g1_b3_joint_varout_dimred = conv3x3(512, 256, bias=False)
-        self.p_ims1d2_outl2_dimred = conv3x3(1024, 256, bias=False)
-        self.adapt_stage2_b = self._make_rcu(256, 256, 2, 2)
-        self.adapt_stage2_b2_joint_varout_dimred = conv3x3(256, 256, bias=False)
+        self.mflow_conv_g1_b3_joint_varout_dimred = conv1x1(512, 256, bias=False)
+        self.p_ims1d2_outl2_dimred = conv1x1(1024, 256, bias=False)
+        self.adapt_stage2_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
         self.mflow_conv_g2_pool = self._make_crp(256, 256, 4)
-        self.mflow_conv_g2_b = self._make_rcu(256, 256, 3, 2)
-        self.mflow_conv_g2_b3_joint_varout_dimred = conv3x3(256, 256, bias=False)
+        self.mflow_conv_g2_b3_joint_varout_dimred = conv1x1(256, 256, bias=False)
 
-        self.p_ims1d2_outl3_dimred = conv3x3(512, 256, bias=False)
-        self.adapt_stage3_b = self._make_rcu(256, 256, 2, 2)
-        self.adapt_stage3_b2_joint_varout_dimred = conv3x3(256, 256, bias=False)
+        self.p_ims1d2_outl3_dimred = conv1x1(512, 256, bias=False)
+        self.adapt_stage3_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
         self.mflow_conv_g3_pool = self._make_crp(256, 256, 4)
-        self.mflow_conv_g3_b = self._make_rcu(256, 256, 3, 2)
-        self.mflow_conv_g3_b3_joint_varout_dimred = conv3x3(256, 256, bias=False)
+        self.mflow_conv_g3_b3_joint_varout_dimred = conv1x1(256, 256, bias=False)
 
-        self.p_ims1d2_outl4_dimred = conv3x3(256, 256, bias=False)
-        self.adapt_stage4_b = self._make_rcu(256, 256, 2, 2)
-        self.adapt_stage4_b2_joint_varout_dimred = conv3x3(256, 256, bias=False)
+        self.p_ims1d2_outl4_dimred = conv1x1(256, 256, bias=False)
+        self.adapt_stage4_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
         self.mflow_conv_g4_pool = self._make_crp(256, 256, 4)
-        self.mflow_conv_g4_b = self._make_rcu(256, 256, 3, 2)
 
         self.clf_conv = nn.Conv2d(256, num_classes, kernel_size=3, stride=1,
                                   padding=1, bias=True)
 
     def _make_crp(self, in_planes, out_planes, stages):
         layers = [CRPBlock(in_planes, out_planes,stages)]
-        return nn.Sequential(*layers)
-    
-    def _make_rcu(self, in_planes, out_planes, blocks, stages):
-        layers = [RCUBlock(in_planes, out_planes, blocks, stages)]
         return nn.Sequential(*layers)
 
     def _make_layer(self, block, planes, blocks, stride=1):
@@ -244,41 +242,32 @@ class RefineNet(nn.Module):
         l3 = self.do(l3)
 
         x4 = self.p_ims1d2_outl1_dimred(l4)
-        x4 = self.adapt_stage1_b(x4)
         x4 = self.relu(x4)
         x4 = self.mflow_conv_g1_pool(x4)
-        x4 = self.mflow_conv_g1_b(x4)
         x4 = self.mflow_conv_g1_b3_joint_varout_dimred(x4)
         x4 = nn.Upsample(size=l3.size()[2:], mode='bilinear', align_corners=True)(x4)
 
         x3 = self.p_ims1d2_outl2_dimred(l3)
-        x3 = self.adapt_stage2_b(x3)
         x3 = self.adapt_stage2_b2_joint_varout_dimred(x3)
         x3 = x3 + x4
         x3 = F.relu(x3)
         x3 = self.mflow_conv_g2_pool(x3)
-        x3 = self.mflow_conv_g2_b(x3)
         x3 = self.mflow_conv_g2_b3_joint_varout_dimred(x3)
         x3 = nn.Upsample(size=l2.size()[2:], mode='bilinear', align_corners=True)(x3)
 
         x2 = self.p_ims1d2_outl3_dimred(l2)
-        x2 = self.adapt_stage3_b(x2)
         x2 = self.adapt_stage3_b2_joint_varout_dimred(x2)
         x2 = x2 + x3
         x2 = F.relu(x2)
         x2 = self.mflow_conv_g3_pool(x2)
-        x2 = self.mflow_conv_g3_b(x2)
         x2 = self.mflow_conv_g3_b3_joint_varout_dimred(x2)
         x2 = nn.Upsample(size=l1.size()[2:], mode='bilinear', align_corners=True)(x2)
 
         x1 = self.p_ims1d2_outl4_dimred(l1)
-        x1 = self.adapt_stage4_b(x1)
         x1 = self.adapt_stage4_b2_joint_varout_dimred(x1)
         x1 = x1 + x2
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1)
-        x1 = self.mflow_conv_g4_b(x1)
-        x1 = self.do(x1)
 
         out = self.clf_conv(x1)
         return out
@@ -303,39 +292,32 @@ def maybe_download(model_name, model_url, model_dir=None, map_location=None):
     return torch.load(cached_file, map_location=map_location)
 
 
-model_urls = {
-    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
+models_urls = {
+    'resnet50' : 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
     'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
 }
 
-def refinenet18(num_classes, pretrained=True, **kwargs):
-    model = RefineNet(Bottleneck, [2, 2, 2, 2], num_classes=num_classes, **kwargs)
-    
+def rfnet_lw50(num_classes, pretrained=True, **kwargs):
+    model = RefineNetLW(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
     if pretrained:
-        key = 'refinenet18'
-        url = model_urls['resnet18']
+        key = 'rfnetlw50'
+        url = models_urls[key]
         model.load_state_dict(maybe_download(key, url), strict=False)
     return model
 
-
-def refinenet50(num_classes, pretrained=True, **kwargs):
-    model = RefineNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
-    
+def rfnet_lw101(num_classes, pretrained=True, **kwargs):
+    model = RefineNetLW(Bottleneck, [3, 4, 23, 3], num_classes=num_classes, **kwargs)
     if pretrained:
-        key = 'refinenet50'
-        url = model_urls['resnet50']
+        key = 'rfnetlw101'
+        url = models_urls[key]
         model.load_state_dict(maybe_download(key, url), strict=False)
     return model
 
-
-def refinenet101(num_classes, pretrained=True, **kwargs):
-    model = RefineNet(Bottleneck, [3, 4, 23, 3], num_classes=num_classes, **kwargs)
-    
+def rfnet_lw152(num_classes, pretrained=True, **kwargs):
+    model = RefineNetLW(Bottleneck, [3, 8, 36, 3], num_classes=num_classes, **kwargs)
     if pretrained:
-        key = 'refinenet101'
-        url = model_urls['resnet101']
+        key = 'rfnetlw152'
+        url = models_urls[key]
         model.load_state_dict(maybe_download(key, url), strict=False)
     return model

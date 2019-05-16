@@ -2,7 +2,8 @@
 import torch
 import torch.nn as nn
 from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152
-from refinenet import refinenet101, refinenet50
+from rfnet import rfnet101, rfnet50
+from rfnet_lw import rfnet_lw101, rfnet_lw50
 
 ## source:
 # https://github.com/foolwood/deepmask-pytorch/blob/master/models/DeepMask.py
@@ -99,7 +100,7 @@ class Interpolate(nn.Module):
         x = self.interp(x, scale_factor=self.scale, mode=self.mode, align_corners=True)
         return x
 
-
+## Suction Model with RefineNet Backbone
 class SuctionRefineNet(nn.Module):
     def __init__(self, options):
         super(SuctionRefineNet, self).__init__()
@@ -127,14 +128,50 @@ class SuctionRefineNet(nn.Module):
         return out
     
     def _create_trunk(self):
-        rfnet = refinenet101(self.num_class, pretrained=True)
-        if self.arch == 'refinenet50':
-            rfnet = refinenet50(self.num_class, pretrained=True)
+        rfnet = rfnet101(self.num_class, pretrained=True)
+        if self.arch == 'rfnet50':
+            rfnet = rfnet50(self.num_class, pretrained=True)
             
         m = nn.Sequential(*(list(rfnet.children())[:-1]))
         updatePadding(m, nn.ReflectionPad2d)
         return m
 
+
+## Suction Model with Light-Weight RefineNet Backbone
+class SuctionRefineNetLW(nn.Module):
+    def __init__(self, options):
+        super(SuctionRefineNetLW, self).__init__()
+        self.arch = options.arch
+        self.rgb_trunk = self.create_trunk()
+        self.depth_trunk = self.create_trunk()
+        self.num_class = options.n_class
+
+        self.feature = nn.Sequential(
+            nn.Dropout(0.25),
+            nn.Conv2d(512, 128, kernel_size=3, stride=1, padding=1, bias=True),
+            nn.Dropout(0.25),
+            nn.Conv2d(128, options.n_class, kernel_size=3, stride=1, padding=1, bias=True),
+        )
+        updatePadding(self.feature, nn.ReflectionPad2d)
+
+    def forward(self, rgbd_input):
+        rgb_feature = self.rgb_trunk(rgbd_input[0])
+        depth_feature = self.depth_trunk(rgbd_input[1])
+
+        # concatenate rgb and depth input
+        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
+
+        out = self.feature(rgbd_parallel)
+        return out
+    
+    def _create_trunk(self):
+        rfnet = rfnet_lw101(self.num_class, pretrained=True)
+        if self.arch == 'rfnet50':
+            rfnet = rfnet_lw50(self.num_class, pretrained=True)
+            
+        m = nn.Sequential(*(list(rfnet.children())[:-1]))
+        updatePadding(m, nn.ReflectionPad2d)
+        return m
 
 ## Suction Model with ResNet18 or ResNet34 backbone
 class SuctionModel18(nn.Module):

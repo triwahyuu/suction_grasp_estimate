@@ -17,6 +17,7 @@ from tensorboardX import SummaryWriter
 
 from dataset import SuctionDatasetNew
 from model import SuctionModel18, SuctionModel50
+from model import SuctionRefineNet, SuctionRefineNetLW
 from utils import label_accuracy_score
 
 import pytz
@@ -40,6 +41,8 @@ class Options:
         self.shuffle = True
         self.learning_rate = 0.001
         self.momentum = 0.99
+        # available architecture: 
+        # [resnet18, resnet34, resnet50, resnet101, rfnet50, rfnet101]
         self.arch = 'resnet18'
 
 
@@ -55,16 +58,27 @@ def BNtoFixed(m):
 ## https://github.com/wkentaro/pytorch-fcn/blob/master/torchfcn/trainer.py
 class Trainer(object):
 
-    def __init__(self, model, optimizer, criterion, train_loader, val_loader, 
-                 output_path, log_path, max_iter, cuda=True, interval_validate=None):
+    def __init__(self, model, optimizers, loss, train_loader, val_loader, 
+                 output_path, log_path, max_iter, backbone='resnet', 
+                 cuda=True, interval_validate=None):
         self.cuda = cuda
 
         self.model = model
-        self.optim = optimizer
+        self.backbone = backbone    ## backbone: [resnet, rfnet]
+
+        ## if using rfnet, optimizers is an array of 2 optimizer
+        ## optimizer for encoder and decoder
+        self.optim = None
+        self.optim_dec = None
+        if self.backbone == 'rfnet':
+            self.optim = optimizers[0]
+            self.optim_dec = optimizers[1]
+        else:
+            self.optim = optimizers
 
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.criterion = criterion
+        self.criterion = loss
         if self.cuda:
             self.criterion = self.criterion.cuda()
 
@@ -120,18 +134,23 @@ class Trainer(object):
                 
             ## validate
             with torch.no_grad():
+                input_img_var = [None, None]
                 if self.cuda:
                     input_img[0], input_img[1], target = input_img[0].cuda(), input_img[1].cuda(), target.cuda()
+                input_img_var[0] = torch.autograd.Variable(input_img[0]).float()
+                input_img_var[1] = torch.autograd.Variable(input_img[1]).float()
 
-                out = self.model(input_img)
-                loss = self.criterion(out, target)
+                output = self.model(input_img_var)
+                output = nn.functional.interpolate(output, size=target.size()[1:],
+                    mode='bilinear', align_corners=False)
+                loss = self.criterion(output, target)
                 loss_data = loss.data.item()
                 if np.isnan(loss_data):
                     raise ValueError('loss is nan while validating')
                 val_loss += loss_data / len(input_img[0])
 
             ## some stats
-            lbl_pred = out.data.max(1)[1].cpu().numpy()[:, :, :]
+            lbl_pred = output.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true = target.data.cpu()
             for lt, lp in zip(lbl_true, lbl_pred):
                 label_trues.append(lt.numpy())
@@ -177,8 +196,8 @@ class Trainer(object):
             self.model.train()
 
     def train_epoch(self):
-        if self.training:
-            self.model.train()
+        self.model.train()
+        model.apply(BNtoFixed)
 
         n_class = self.train_loader.dataset.n_class
 
@@ -195,23 +214,35 @@ class Trainer(object):
             if self.iteration % self.interval_validate == 0 and self.iteration != 0:
                 self.validate()
 
+            ## prepare input and label
+            input_img_var = [None, None]
             if self.cuda:
                 input_img[0], input_img[1] = input_img[0].cuda(), input_img[1].cuda()
                 target = target.cuda()
-            
-            ## main training function
-            self.optim.zero_grad()
-            out = self.model(input_img)
+            input_img_var[0] = torch.autograd.Variable(input_img[0]).float()
+            input_img_var[1] = torch.autograd.Variable(input_img[1]).float()
+            target_var = torch.autograd.Variable(target).long()
 
-            loss = self.criterion(out, target)
+            ## main training function
+            ## compute output of feed forward
+            output = self.model(input_img_var)
+            output = nn.functional.interpolate(output, size=target_var.size()[1:],
+                mode='bilinear', align_corners=False)
+            # output = nn.LogSoftmax()(output) ## WHY?
+
+            ## compute loss and backpropagate
+            loss = self.criterion(output, target_var)
             loss_data = loss.data.item()
-            if np.isnan(loss_data):
-                raise ValueError('loss is nan while training')
+            self.optim.zero_grad()
+            if self.backbone == 'rfnet':
+                self.optim_dec.zero_grad()
             loss.backward()
             self.optim.step()
+            if self.backbone == 'rfnet':
+                self.optim_dec.step()
 
             ## the stats
-            lbl_pred = out.data.max(1)[1].cpu().numpy()[:, :, :]
+            lbl_pred = output.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true = target.data.cpu().numpy()
             metrics = label_accuracy_score(lbl_true, lbl_pred, n_class=n_class)
 
@@ -290,11 +321,14 @@ if __name__ == "__main__":
     if args.result_path != '':
         result_path = args.result_path
 
-    ## model
+    ## prepare model
+    model = None
     if args.arch == 'resnet18' or args.arch == 'resnet34':
         model = SuctionModel18(options)
     elif args.arch == 'resnet50' or args.arch == 'resnet101' or args.arch == 'resnet152':
         model = SuctionModel50(options)
+    elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
+        model = SuctionRefineNet(options)
     model.apply(BNtoFixed)
     
     start_epoch = 0
@@ -329,8 +363,8 @@ if __name__ == "__main__":
         optimizer.load_state_dict(checkpoint['optim_state_dict'])
     
     ## the main deal
-    trainer = Trainer(model=model, optimizer=optimizer, criterion=criterion,
-        train_loader=train_loader, val_loader=val_loader,
+    trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
+        train_loader=train_loader, val_loader=val_loader, backbone='resnet',
         output_path=os.path.join(result_path, now), log_path=result_path,
         max_iter=500000, cuda=(not args.use_cpu))
     trainer.epoch = start_epoch
