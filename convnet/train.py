@@ -341,7 +341,7 @@ if __name__ == "__main__":
         model = SuctionModel50(options)
     elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
         backbone = 'rfnet'
-        model = SuctionRefineNet(options)
+        model = SuctionRefineNetLW(options)
     model.apply(BNtoFixed)
     model.to(device)
     

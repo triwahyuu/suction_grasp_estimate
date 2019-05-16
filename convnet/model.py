@@ -105,8 +105,8 @@ class SuctionRefineNet(nn.Module):
     def __init__(self, options):
         super(SuctionRefineNet, self).__init__()
         self.arch = options.arch
-        self.rgb_trunk = self.create_trunk()
-        self.depth_trunk = self.create_trunk()
+        self.rgb_trunk = self._create_trunk()
+        self.depth_trunk = self._create_trunk()
         self.num_class = options.n_class
 
         self.feature = nn.Sequential(
@@ -142,8 +142,8 @@ class SuctionRefineNetLW(nn.Module):
     def __init__(self, options):
         super(SuctionRefineNetLW, self).__init__()
         self.arch = options.arch
-        self.rgb_trunk = self.create_trunk()
-        self.depth_trunk = self.create_trunk()
+        self.rgb_trunk = self._create_trunk()
+        self.depth_trunk = self._create_trunk()
         self.num_class = options.n_class
 
         self.feature = nn.Sequential(
