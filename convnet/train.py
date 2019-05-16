@@ -228,7 +228,6 @@ class Trainer(object):
             output = self.model(input_img_var)
             output = nn.functional.interpolate(output, size=target_var.size()[1:],
                 mode='bilinear', align_corners=False)
-            # output = nn.LogSoftmax()(output) ## WHY?
 
             ## compute loss and backpropagate
             loss = self.criterion(output, target_var)
@@ -364,6 +363,20 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     if args.resume != '':
         optimizer.load_state_dict(checkpoint['optim_state_dict'])
+
+    if backbone == 'rfnet':
+        import re
+        enc_params = []
+        dec_params = []
+        for k,v in model.named_parameters():
+                if bool(re.match(".*conv1.*|.*bn1.*|.*layer.*", k)):
+                    enc_params.append(v)
+                else:
+                    dec_params.append(v)
+        optim_enc = optim.SGD(enc_params, lr=args.lr, momentum=args.momentum)
+        optim_dec = optim.SGD(dec_params, lr=args.lr, momentum=args.momentum)
+        optimizer = [optim_enc, optim_dec]
+
     
     ## the main deal
     trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
