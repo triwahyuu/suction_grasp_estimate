@@ -68,13 +68,11 @@ class Trainer(object):
 
         ## if using rfnet, optimizers is an array of 2 optimizer
         ## optimizer for encoder and decoder
-        self.optim = None
+        self.optim = optimizers
         self.optim_dec = None
         if self.backbone == 'rfnet':
             self.optim = optimizers[0]
             self.optim_dec = optimizers[1]
-        else:
-            self.optim = optimizers
 
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -283,6 +281,8 @@ class Trainer(object):
     def train(self):
         self.training = True
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
+        if self.cuda:
+            torch.cuda.empty_cache()
         for epoch in tqdm.trange(self.epoch, max_epoch,
                                  desc='Train', ncols=80):
             self.epoch = epoch

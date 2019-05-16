@@ -12,10 +12,6 @@ from torchvision import transforms
 import imgaug as ia
 from imgaug import augmenters as iaa
 
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-
 class Struct:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
@@ -151,102 +147,25 @@ class SuctionDataset(Dataset):
         return self.num_samples
 
 
-class HybridTrainPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, data_dir, crop, dali_cpu=False):
-        super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed=12 + device_id)
-        self.input = ops.FileReader(file_root=data_dir, random_shuffle=True)
-        #let user decide which pipeline works him bets for RN version he runs
-        if dali_cpu:
-            dali_device = "cpu"
-            self.decode = ops.HostDecoderRandomCrop(
-                device=dali_device, output_type=types.RGB,
-                random_aspect_ratio=[0.8, 1.25],
-                random_area=[0.1, 1.0], num_attempts=100)
-        else:
-            dali_device = "cuda"
-            # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
-            # without additional reallocations
-            self.decode = ops.nvJPEGDecoderRandomCrop(
-                device="mixed", output_type=types.RGB, 
-                device_memory_padding=211025920, host_memory_padding=140544512,
-                random_aspect_ratio=[0.8, 1.25], random_area=[0.1, 1.0], num_attempts=100)
-        self.res = ops.Resize(device=dali_device, resize_x=crop, resize_y=crop, interp_type=types.INTERP_TRIANGULAR)
-        self.cmnp = ops.CropMirrorNormalize(
-            device="cuda", output_dtype=types.FLOAT, output_layout=types.NCHW,
-            crop=(crop, crop), image_type=types.RGB,
-            mean=[0.485*255, 0.456*255, 0.406*255],
-            std=[0.229*255, 0.224*255, 0.225*255])
-        self.coin = ops.CoinFlip(probability=0.5)
-        print('DALI "{0}" variant'.format(dali_device))
-
-    def define_graph(self):
-        rng = self.coin()
-        self.jpegs, self.labels = self.input(name="Reader")
-        images = self.decode(self.jpegs)
-        images = self.res(images)
-        output = self.cmnp(images.cuda(), mirror=rng)
-        return [output, self.labels]
-
-class HybridValPipe(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, data_dir, crop, size):
-        super(HybridValPipe, self).__init__(batch_size, num_threads, device_id, seed=12 + device_id)
-        self.input = ops.FileReader(file_root=data_dir, random_shuffle=False)
-        self.decode = ops.nvJPEGDecoder(device="mixed", output_type=types.RGB)
-        self.res = ops.Resize(device="cuda", resize_shorter=size, interp_type=types.INTERP_TRIANGULAR)
-        self.cmnp = ops.CropMirrorNormalize(
-            device="cuda", output_dtype=types.FLOAT, output_layout=types.NCHW,
-            crop=(crop, crop), image_type=types.RGB,
-            mean=[0.485*255, 0.456*255, 0.406*255],
-            std=[0.229*255, 0.224*255, 0.225*255])
-
-    def define_graph(self):
-        self.jpegs, self.labels = self.input(name="Reader")
-        images = self.decode(self.jpegs)
-        images = self.res(images)
-        output = self.cmnp(images)
-        return [output, self.labels]
-
-class DatasetIterator(object):
-    def __init__(self, batch_size):
-        self.images_dir = "images/"
-        self.batch_size = batch_size
-        with open(self.images_dir + "file_list.txt", 'r') as f:
-            self.files = [line.rstrip() for line in f if line is not '']
-        random.shuffle(self.files)
-
-    def __iter__(self):
-        self.i = 0
-        self.n = len(self.files)
-        return self
-
-    def __next__(self):
-        batch = []
-        labels = []
-        for _ in range(self.batch_size):
-            jpeg_filename, label = self.files[self.i].split(' ')
-            f = open(self.images_dir + jpeg_filename, 'rb')
-            batch.append(np.frombuffer(f.read(), dtype = np.uint8))
-            labels.append(np.array([label], dtype = np.uint8))
-            self.i = (self.i + 1) % self.n
-        return (batch, labels)
-
-    next = __next__
-
 ## just for testing
 if __name__ == "__main__":
-    options = Struct(\
-        data_path = '/home/tri/skripsi/dataset/',
-        sample_path = '/home/tri/skripsi/dataset/test-split.txt',
-        img_height =  480,
-        img_width = 640,
-        batch_size = 4,
-        n_class = 3,
-        output_scale = 8,
-        shuffle = True,
-        learning_rate = 0.001
-    )
+    class Options:
+        def __init__(self):
+            data_path = '/home/tri/skripsi/dataset/'
+            sample_path = '/home/tri/skripsi/dataset/test-split.txt'
+            img_height =  480
+            img_width = 640
+            batch_size = 4
+            n_class = 3
+            output_scale = 8
+            shuffle = True
+            learning_rate = 0.001
+
+    options = Options()
+    data_path = '/home/tri/skripsi/dataset/'
+    sample_path = '/home/tri/skripsi/dataset/test-split.txt'
 
     # testing functionality
-    suction_dataset = SuctionDataset(options, data_path=options.data_path, sample_list=options.sample_path)
+    suction_dataset = SuctionDataset(options, data_path=data_path, sample_list=sample_path)
     rgbd, label = suction_dataset[1]
     a, b = suction_dataset[2]
