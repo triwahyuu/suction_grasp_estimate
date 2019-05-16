@@ -269,7 +269,8 @@ class RefineNetLW(nn.Module):
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1)
 
-        out = self.clf_conv(x1)
+        # out = self.clf_conv(x1)
+        out = x1
         return out
 
 
@@ -301,23 +302,23 @@ models_urls = {
 def rfnet_lw50(num_classes, pretrained=True, **kwargs):
     model = RefineNetLW(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
     if pretrained:
-        key = 'rfnetlw50'
+        key = 'resnet50'
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        model.load_state_dict(maybe_download('rfnetlw50', url), strict=False)
     return model
 
 def rfnet_lw101(num_classes, pretrained=True, **kwargs):
     model = RefineNetLW(Bottleneck, [3, 4, 23, 3], num_classes=num_classes, **kwargs)
     if pretrained:
-        key = 'rfnetlw101'
+        key = 'resnet101'
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        model.load_state_dict(maybe_download('rfnetlw101', url), strict=False)
     return model
 
 def rfnet_lw152(num_classes, pretrained=True, **kwargs):
     model = RefineNetLW(Bottleneck, [3, 8, 36, 3], num_classes=num_classes, **kwargs)
     if pretrained:
-        key = 'rfnetlw152'
+        key = 'resnet152'
         url = models_urls[key]
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        model.load_state_dict(maybe_download('rfnetlw152', url), strict=False)
     return model

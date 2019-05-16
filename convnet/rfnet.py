@@ -313,9 +313,9 @@ def rfnet50(num_classes, pretrained=True, **kwargs):
     model = RefineNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
     
     if pretrained:
-        key = 'rfnet50'
-        url = model_urls['resnet50']
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        key = 'resnet50'
+        url = model_urls[key]
+        model.load_state_dict(maybe_download('rfnet50', url), strict=False)
     return model
 
 
@@ -323,16 +323,16 @@ def rfnet101(num_classes, pretrained=True, **kwargs):
     model = RefineNet(Bottleneck, [3, 4, 23, 3], num_classes=num_classes, **kwargs)
     
     if pretrained:
-        key = 'rfnet101'
-        url = model_urls['resnet101']
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        key = 'resnet101'
+        url = model_urls[key]
+        model.load_state_dict(maybe_download('rfnet101', url), strict=False)
     return model
 
 def rfnet152(num_classes, pretrained=True, **kwargs):
     model = RefineNet(Bottleneck, [3, 8, 36, 3], num_classes=num_classes, **kwargs)
     
     if pretrained:
-        key = 'rfnet152'
-        url = model_urls['resnet152']
-        model.load_state_dict(maybe_download(key, url), strict=False)
+        key = 'resnet152'
+        url = model_urls[key]
+        model.load_state_dict(maybe_download('rfnet152', url), strict=False)
     return model
