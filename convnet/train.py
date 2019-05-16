@@ -281,7 +281,8 @@ class Trainer(object):
                 break
                 
 if __name__ == "__main__":
-    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
+    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
+        'rfnet50', 'rfnet101', 'rfnet152']
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
@@ -323,11 +324,13 @@ if __name__ == "__main__":
 
     ## prepare model
     model = None
+    backbone = 'resnet'
     if args.arch == 'resnet18' or args.arch == 'resnet34':
         model = SuctionModel18(options)
     elif args.arch == 'resnet50' or args.arch == 'resnet101' or args.arch == 'resnet152':
         model = SuctionModel50(options)
     elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
+        backbone = 'rfnet'
         model = SuctionRefineNet(options)
     model.apply(BNtoFixed)
     
@@ -364,7 +367,7 @@ if __name__ == "__main__":
     
     ## the main deal
     trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
-        train_loader=train_loader, val_loader=val_loader, backbone='resnet',
+        train_loader=train_loader, val_loader=val_loader, backbone=backbone,
         output_path=os.path.join(result_path, now), log_path=result_path,
         max_iter=500000, cuda=(not args.use_cpu))
     trainer.epoch = start_epoch
