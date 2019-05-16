@@ -182,6 +182,17 @@ class Trainer(object):
             'model_state_dict': self.model.state_dict(),
             'best_mean_iu': self.best_mean_iu,
         }, osp.join(self.output_path, 'checkpoint.pth.tar'))
+        if self.backbone == 'rfnet':
+            torch.save({
+            'epoch': self.epoch,
+            'iteration': self.iteration,
+            'arch': self.model.__class__.__name__,
+            'optim_state_dict': self.optim.state_dict(),
+            'optim_dec_state_dict': self.optim_dec.state_dict(),
+            'model_state_dict': self.model.state_dict(),
+            'best_mean_iu': self.best_mean_iu,
+        }, osp.join(self.output_path, 'checkpoint.pth.tar'))
+
         if is_best:
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
                         osp.join(self.output_path, 'model_best.pth.tar'))
@@ -332,6 +343,7 @@ if __name__ == "__main__":
         backbone = 'rfnet'
         model = SuctionRefineNet(options)
     model.apply(BNtoFixed)
+    model.to(device)
     
     start_epoch = 0
     start_iteration = 0
@@ -341,11 +353,9 @@ if __name__ == "__main__":
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
     
-    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
+    ## Loss
+    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
     
-    model.to(device)
-    criterion.to(device)
-
 
     ## dataset
     train_dataset = SuctionDatasetNew(options, mode='train')
@@ -359,7 +369,7 @@ if __name__ == "__main__":
         shuffle=False, num_workers=3)
 
 
-    ## optimizer
+    ## Optimizer
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     if args.resume != '':
         optimizer.load_state_dict(checkpoint['optim_state_dict'])
@@ -375,6 +385,9 @@ if __name__ == "__main__":
                     dec_params.append(v)
         optim_enc = optim.SGD(enc_params, lr=args.lr, momentum=args.momentum)
         optim_dec = optim.SGD(dec_params, lr=args.lr, momentum=args.momentum)
+        if args.resume != '':
+            optim_enc.load_state_dict(checkpoint['optim_state_dict'])
+            optim_dec.load_state_dict(checkpoint['optim_dec_state_dict'])
         optimizer = [optim_enc, optim_dec]
 
     
