@@ -290,8 +290,8 @@ def maybe_download(model_url, model_dir=None, map_location=None):
     import torch
     
     if model_dir is None:
-        torch_home = os.path.expanduser(os.getenv('TORCH_HOME', '~/.torch'))
-        model_dir = os.getenv('TORCH_MODEL_ZOO', os.path.join(torch_home, 'models'))
+        torch_home = os.path.expanduser(os.getenv('TORCH_HOME', '~/.cache/torch'))
+        model_dir = os.getenv('TORCH_MODEL_ZOO', os.path.join(torch_home, 'checkpoints'))
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
     filename = model_url.split('/')[-1]

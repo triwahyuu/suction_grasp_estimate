@@ -2,10 +2,10 @@
 
 import torch
 import torch.nn as nn
-from resnet import resnet18, resnet34, resnet50, resnet101, resnet152
-from rfnet import rfnet101, rfnet50
-from rfnet_lw import rfnet_lw101, rfnet_lw50
-from pspnet import PSPNet
+from .resnet import resnet18, resnet34, resnet50, resnet101, resnet152
+from .rfnet import rfnet101, rfnet50
+from .rfnet_lw import rfnet_lw101, rfnet_lw50
+from .pspnet import PSPNet
 
 ## source:
 # https://github.com/foolwood/deepmask-pytorch/blob/master/models/DeepMask.py
@@ -118,7 +118,7 @@ class SuctionRefineNet(nn.Module):
             nn.Dropout(0.25),
             nn.Conv2d(128, options.n_class, kernel_size=3, stride=1, padding=1, bias=True)
         )
-        updatePadding(self.feature, nn.ReflectionPad2d)
+        # updatePadding(self.feature, nn.ReflectionPad2d)
 
     def forward(self, rgbd_input):
         rgb_feature = self.rgb_trunk(rgbd_input[0])
@@ -156,7 +156,7 @@ class SuctionRefineNetLW(nn.Module):
             nn.Dropout(0.25),
             nn.Conv2d(128, options.n_class, kernel_size=3, stride=1, padding=1, bias=True)
         )
-        updatePadding(self.feature, nn.ReflectionPad2d)
+        # updatePadding(self.feature, nn.ReflectionPad2d)
 
     def forward(self, rgbd_input):
         rgb_feature = self.rgb_trunk(rgbd_input[0])

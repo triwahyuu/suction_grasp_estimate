@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-import resnet
+from . import resnet
 
 
 class PSPModule(nn.Module):
