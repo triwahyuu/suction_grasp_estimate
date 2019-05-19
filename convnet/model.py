@@ -1,7 +1,7 @@
 ## network model
 import torch
 import torch.nn as nn
-from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152
+from resnet import resnet18, resnet34, resnet50, resnet101, resnet152
 from rfnet import rfnet101, rfnet50
 from rfnet_lw import rfnet_lw101, rfnet_lw50
 
@@ -133,8 +133,8 @@ class SuctionRefineNet(nn.Module):
         if self.arch == 'rfnet50':
             rfnet = rfnet50(self.n_class, pretrained=True)
             
+        updatePadding(rfnet, nn.ReflectionPad2d)
         m = rfnet
-        # updatePadding(m, nn.ReflectionPad2d)
         return m
 
 
@@ -154,7 +154,7 @@ class SuctionRefineNetLW(nn.Module):
             nn.Dropout(0.25),
             nn.Conv2d(128, options.n_class, kernel_size=3, stride=1, padding=1, bias=True)
         )
-        # updatePadding(self.feature, nn.ReflectionPad2d)
+        updatePadding(self.feature, nn.ReflectionPad2d)
 
     def forward(self, rgbd_input):
         rgb_feature = self.rgb_trunk(rgbd_input[0])
@@ -170,9 +170,9 @@ class SuctionRefineNetLW(nn.Module):
         rfnet = rfnet_lw101(self.n_class, pretrained=True)
         if self.arch == 'rfnet50':
             rfnet = rfnet_lw50(self.n_class, pretrained=True)
-            
+        
+        updatePadding(rfnet, nn.ReflectionPad2d)
         m = rfnet
-        # updatePadding(m, nn.ReflectionPad2d)
         return m
 
 ## Suction Model with ResNet18 or ResNet34 backbone
@@ -207,8 +207,8 @@ class SuctionModel18(nn.Module):
         resnet = resnet18(pretrained=True)
         if self.arch == 'resnet34':
             resnet = resnet34(pretrained=True)
-        m = nn.Sequential(*(list(resnet.children())[:-3]))
-        updatePadding(m, nn.ReflectionPad2d)
+        updatePadding(resnet, nn.ReflectionPad2d)
+        m = resnet
         return m
 
 
@@ -223,10 +223,10 @@ class SuctionModel50(nn.Module):
         self.feature = nn.Sequential(
             nn.Dropout(0.25),
             nn.Conv2d(2048, 512, kernel_size=(1,1), stride=(1,1)),
-            nn.Dropout(0.3),
+            nn.Dropout(0.25),
             nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
             nn.Threshold(0, 1e-6),
-            nn.Dropout(0.5),
+            nn.Dropout(0.25),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
             Interpolate(scale=2, mode='bilinear')
         )
@@ -248,6 +248,6 @@ class SuctionModel50(nn.Module):
             resnet = resnet50(pretrained=True)
         elif self.arch == 'resnet152':
             resnet = resnet152(pretrained=True)
-        m = nn.Sequential(*(list(resnet.children())[:-3]))
-        updatePadding(m, nn.ReflectionPad2d)
+        updatePadding(resnet, nn.ReflectionPad2d)
+        m = resnet
         return m

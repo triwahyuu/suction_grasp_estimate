@@ -284,7 +284,7 @@ class RefineNet(nn.Module):
         return out
 
 
-def maybe_download(model_name, model_url, model_dir=None, map_location=None):
+def maybe_download(model_url, model_dir=None, map_location=None):
     import os, sys
     from six.moves import urllib
     import torch
@@ -294,7 +294,7 @@ def maybe_download(model_name, model_url, model_dir=None, map_location=None):
         model_dir = os.getenv('TORCH_MODEL_ZOO', os.path.join(torch_home, 'models'))
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
-    filename = '{}.pth.tar'.format(model_name)
+    filename = model_url.split('/')[-1]
     cached_file = os.path.join(model_dir, filename)
     if not os.path.exists(cached_file):
         url = model_url
@@ -315,7 +315,7 @@ def rfnet50(num_classes, pretrained=True, **kwargs):
     if pretrained:
         key = 'resnet50'
         url = model_urls[key]
-        model.load_state_dict(maybe_download('rfnet50', url), strict=False)
+        model.load_state_dict(maybe_download(url), strict=False)
     return model
 
 
@@ -325,7 +325,7 @@ def rfnet101(num_classes, pretrained=True, **kwargs):
     if pretrained:
         key = 'resnet101'
         url = model_urls[key]
-        model.load_state_dict(maybe_download('rfnet101', url), strict=False)
+        model.load_state_dict(maybe_download(url), strict=False)
     return model
 
 def rfnet152(num_classes, pretrained=True, **kwargs):
@@ -334,5 +334,5 @@ def rfnet152(num_classes, pretrained=True, **kwargs):
     if pretrained:
         key = 'resnet152'
         url = model_urls[key]
-        model.load_state_dict(maybe_download('rfnet152', url), strict=False)
+        model.load_state_dict(maybe_download(url), strict=False)
     return model
