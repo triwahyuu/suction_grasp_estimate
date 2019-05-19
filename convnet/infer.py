@@ -2,7 +2,7 @@
 from vis_util import visualize
 from utils import prepare_input
 from vis_util import post_process
-from model import SuctionModel18, SuctionModel50
+from models.model import SuctionModel18, SuctionModel50
 
 import os
 import argparse

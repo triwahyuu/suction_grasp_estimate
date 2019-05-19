@@ -16,8 +16,8 @@ from tensorboardX import SummaryWriter
 # from apex import fp16_utils
 
 from dataset import SuctionDatasetNew
-from model import SuctionModel18, SuctionModel50
-from model import SuctionRefineNet, SuctionRefineNetLW
+from model.model import SuctionModel18, SuctionModel50
+from model.model import SuctionRefineNet, SuctionRefineNetLW
 from utils import label_accuracy_score
 
 import pytz
@@ -59,12 +59,13 @@ def BNtoFixed(m):
 class Trainer(object):
 
     def __init__(self, model, optimizers, loss, train_loader, val_loader, 
-                 output_path, log_path, max_iter, backbone='resnet', 
-                 cuda=True, interval_validate=None):
+                 output_path, log_path, max_iter, backbone='resnet',
+                 cuda=True, interval_validate=None, freeze_bn=True):
         self.cuda = cuda
 
         self.model = model
         self.backbone = backbone    ## backbone: [resnet, rfnet]
+        self.freeze_bn = freeze_bn
 
         ## if using rfnet, optimizers is an array of 2 optimizer
         ## optimizer for encoder and decoder
@@ -206,7 +207,8 @@ class Trainer(object):
 
     def train_epoch(self):
         self.model.train()
-        model.apply(BNtoFixed)
+        if self.freeze_bn:
+            self.model.apply(BNtoFixed)
 
         n_class = self.train_loader.dataset.n_class
 

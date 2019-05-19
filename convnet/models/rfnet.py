@@ -1,4 +1,4 @@
-## Suction Model using RefineNet as the backbone
+## RefineNet model definition
 ## Modified from original implementation of RefineNet Paper
 ## https://github.com/DrSleep/refinenet-pytorch/blob/master/models/resnet.py
 ## https://arxiv.org/abs/1611.06612
