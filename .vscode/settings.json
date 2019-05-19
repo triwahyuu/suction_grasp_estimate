@@ -1,8 +1,0 @@
-{
-    "python.pythonPath": "/home/server-1/envs/pytorch/bin/python",
-    "editor.detectIndentation": false,
-    "python.linting.pylintArgs": [
-        "--errors-only",
-        "--generated-members=numpy.*, torch.*, cv2.*, Options.*, ops.*, types.*, open3d.*"
-    ]
-}
