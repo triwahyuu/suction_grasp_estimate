@@ -1,4 +1,5 @@
-## Modified version of Official Pytorch Implementation of ResNet
+## ResNet model definition
+## Modified from Official Pytorch Implementation of ResNet
 ## https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
 ## https://arxiv.org/abs/1512.03385
 import torch.nn as nn

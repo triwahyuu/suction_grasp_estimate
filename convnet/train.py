@@ -16,8 +16,9 @@ from tensorboardX import SummaryWriter
 # from apex import fp16_utils
 
 from dataset import SuctionDatasetNew
-from model.model import SuctionModel18, SuctionModel50
-from model.model import SuctionRefineNet, SuctionRefineNetLW
+from models.model import SuctionModel18, SuctionModel50
+from models.model import SuctionRefineNet, SuctionRefineNetLW
+from models.model import SuctionPSPNet
 from utils import label_accuracy_score
 
 import pytz
@@ -294,7 +295,7 @@ class Trainer(object):
                 
 if __name__ == "__main__":
     model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
-        'rfnet50', 'rfnet101', 'rfnet152']
+        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101']
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
@@ -344,6 +345,8 @@ if __name__ == "__main__":
     elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
         backbone = 'rfnet'
         model = SuctionRefineNetLW(options)
+    elif args.arch == 'pspnet50' or args.arch == 'pspnet101':
+        model = SuctionPSPNet(options)
     model.apply(BNtoFixed)
     model.to(device)
     

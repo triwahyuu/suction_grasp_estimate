@@ -1,9 +1,11 @@
-## network model
+## Suction Model
+
 import torch
 import torch.nn as nn
 from resnet import resnet18, resnet34, resnet50, resnet101, resnet152
 from rfnet import rfnet101, rfnet50
 from rfnet_lw import rfnet_lw101, rfnet_lw50
+from pspnet import PSPNet
 
 ## source:
 # https://github.com/foolwood/deepmask-pytorch/blob/master/models/DeepMask.py
@@ -247,6 +249,44 @@ class SuctionModel50(nn.Module):
         if self.arch == 'resnet50':
             resnet = resnet50(pretrained=True)
         elif self.arch == 'resnet152':
+            resnet = resnet152(pretrained=True)
+        updatePadding(resnet, nn.ReflectionPad2d)
+        m = resnet
+        return m
+
+## Suction Model with ResNet backbone and PSPNet Segmentor
+class SuctionPSPNet(nn.Module):
+    def __init__(self, options):
+        super(SuctionPSPNet, self).__init__()
+        self.arch = options.arch
+        self.psp_size = 2048
+        self.rgb_trunk = self._create_trunk()
+        self.depth_trunk = self._create_trunk()
+
+        self.segment = PSPNet(n_classes=options.n_class, psp_size=self.psp_size)
+        updatePadding(self.segment, nn.ReflectionPad2d)
+
+    def forward(self, rgbd_input):
+        rgb_feature = self.rgb_trunk(rgbd_input[0])
+        depth_feature = self.depth_trunk(rgbd_input[1])
+
+        # concatenate rgb and depth input
+        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
+        
+        out = self.segment(rgbd_parallel)
+        return out
+
+    def _create_trunk(self):
+        resnet = resnet101(pretrained=True)
+        if self.arch == 'pspnet18':
+            self.psp_size = 1024
+            resnet = resnet18(pretrained=True)
+        elif self.arch == 'pspnet34':
+            self.psp_size = 1024
+            resnet = resnet34(pretrained=True)
+        elif self.arch == 'pspnet50':
+            resnet = resnet50(pretrained=True)
+        elif self.arch == 'pspnet152':
             resnet = resnet152(pretrained=True)
         updatePadding(resnet, nn.ReflectionPad2d)
         m = resnet
