@@ -116,6 +116,7 @@ class Trainer(object):
         self.iteration = 0
         self.max_iter = max_iter
         self.best_mean_iu = 0
+        self.best_loss = 0
         self.writer = SummaryWriter(log_dir=os.path.join(log_path, 'tb'))
         torch.manual_seed(1234)
 
@@ -172,8 +173,11 @@ class Trainer(object):
 
         mean_iu = metrics[2]
         is_best = mean_iu > self.best_mean_iu
+        is_loss_best = val_loss < self.best_loss
         if is_best:
             self.best_mean_iu = mean_iu
+        if is_loss_best:
+            self.best_loss = val_loss
         torch.save({
             'epoch': self.epoch,
             'iteration': self.iteration,
@@ -181,6 +185,7 @@ class Trainer(object):
             'optim_state_dict': self.optim.state_dict(),
             'model_state_dict': self.model.state_dict(),
             'best_mean_iu': self.best_mean_iu,
+            'best_loss': self.best_loss,
         }, osp.join(self.output_path, 'checkpoint.pth.tar'))
         if self.backbone == 'rfnet':
             torch.save({
@@ -191,11 +196,15 @@ class Trainer(object):
             'optim_dec_state_dict': self.optim_dec.state_dict(),
             'model_state_dict': self.model.state_dict(),
             'best_mean_iu': self.best_mean_iu,
+            'best_loss': self.best_loss,
         }, osp.join(self.output_path, 'checkpoint.pth.tar'))
 
         if is_best:
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
                         osp.join(self.output_path, 'model_best.pth.tar'))
+        if is_loss_best:
+            shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
+                        osp.join(self.output_path, 'model_loss_best.pth.tar'))
         
         self.writer.add_scalar('val/loss', val_loss, self.iteration//self.interval_validate)
         self.writer.add_scalar('val/accuracy', metrics[0], self.iteration//self.interval_validate)
@@ -358,9 +367,6 @@ if __name__ == "__main__":
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
     
-    ## Loss
-    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
-    
 
     ## dataset
     train_dataset = SuctionDatasetNew(options, mode='train')
@@ -373,6 +379,9 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=options.batch_size,\
         shuffle=False, num_workers=3)
 
+    
+    ## Loss
+    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
 
     ## Optimizer
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
@@ -405,4 +414,5 @@ if __name__ == "__main__":
     trainer.iteration = start_iteration
     if args.resume != '':
         trainer.best_mean_iu = checkpoint['best_mean_iu']
+        # trainer.best_loss = checkpoint['best_loss']
     trainer.train()
