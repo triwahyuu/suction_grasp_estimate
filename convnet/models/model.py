@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-from .resnet import resnet18, resnet34, resnet50, resnet101, resnet152
+from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152
 from .rfnet import rfnet101, rfnet50
 from .rfnet_lw import rfnet_lw101, rfnet_lw50
 from .pspnet import PSPNet
@@ -209,8 +209,10 @@ class SuctionModel18(nn.Module):
         resnet = resnet18(pretrained=True)
         if self.arch == 'resnet34':
             resnet = resnet34(pretrained=True)
-        updatePadding(resnet, nn.ReflectionPad2d)
-        m = resnet
+        ## removing classifier layers
+        m = nn.Sequential(*(list(resnet.children())[:-3]))
+        updatePadding(m, nn.ReflectionPad2d)
+        # m = resnet
         return m
 
 
@@ -250,8 +252,10 @@ class SuctionModel50(nn.Module):
             resnet = resnet50(pretrained=True)
         elif self.arch == 'resnet152':
             resnet = resnet152(pretrained=True)
-        updatePadding(resnet, nn.ReflectionPad2d)
-        m = resnet
+        ## removing classifier layers
+        m = nn.Sequential(*(list(resnet.children())[:-3]))
+        updatePadding(m, nn.ReflectionPad2d)
+        # m = resnet
         return m
 
 ## Suction Model with ResNet backbone and PSPNet Segmentor
@@ -288,6 +292,8 @@ class SuctionPSPNet(nn.Module):
             resnet = resnet50(pretrained=True)
         elif self.arch == 'pspnet152':
             resnet = resnet152(pretrained=True)
-        updatePadding(resnet, nn.ReflectionPad2d)
-        m = resnet
+        ## removing classifier layers
+        m = nn.Sequential(*(list(resnet.children())[:-3]))
+        updatePadding(m, nn.ReflectionPad2d)
+        # m = resnet
         return m
