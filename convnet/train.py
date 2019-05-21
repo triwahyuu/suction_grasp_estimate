@@ -73,7 +73,7 @@ class Trainer(object):
 
     def __init__(self, model, optimizers, loss, train_loader, val_loader, 
                  output_path, log_path, max_epoch=200, max_iter=None, backbone='resnet',
-                 cuda=True, interval_validate=None, freeze_bn=True):
+                 cuda=True, interval_validate=None, freeze_bn=True, use_amp=False):
         self.cuda = cuda
 
         self.model = model
@@ -124,7 +124,7 @@ class Trainer(object):
             with open(osp.join(self.output_path, 'log.csv'), 'w') as f:
                 f.write(','.join(self.log_headers) + '\n')
 
-        self.use_amp = APEX_AVAILABLE
+        self.use_amp = APEX_AVAILABLE if use_amp else False
         self.epoch = 0
         self.iteration = 0
         self.max_iter = max_iter
@@ -351,6 +351,9 @@ if __name__ == "__main__":
     parser.add_argument(
         '--use-cpu', dest='use_cpu', action='store_true', help='use cpu on training',
     )
+    parser.add_argument(
+        '--use-amp', dest='use_amp', action='store_true', help='use amp on training',
+    )
     parser.add_argument('--opt-level', default='O2', type=str)
     args = parser.parse_args()
     options = Options()
@@ -428,17 +431,18 @@ if __name__ == "__main__":
     
     
     ## initialize amp
-    model, optimizer = amp.initialize(
-        model, optimizer, opt_level=args.opt_level, 
-        keep_batchnorm_fp32=True, loss_scale="dynamic"
-    )
+    if args.use_amp:
+        model, optimizer = amp.initialize(
+            model, optimizer, opt_level=args.opt_level, 
+            keep_batchnorm_fp32=True, loss_scale="dynamic"
+        )
 
     
     ## the main deal
     trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
         train_loader=train_loader, val_loader=val_loader, backbone=backbone,
         output_path=os.path.join(result_path, now), log_path=result_path,
-        max_epoch=60, cuda=(not args.use_cpu))
+        max_epoch=50, cuda=(not args.use_cpu), use_amp=args.use_amp)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     if args.resume != '':
