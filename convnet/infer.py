@@ -18,8 +18,10 @@ from skimage.transform import resize
 
 class Options(object):
     def __init__(self):
-        self.data_path = '/home/tri/skripsi/dataset/'
-        self.model_path = '/home/tri/skripsi/result/04_resnet18_dropout/20190429_222828/model_best.pth.tar'
+        p = os.path.dirname(os.path.abspath(__file__)).split('/')[:-1]
+        self.proj_path = '/'.join(p)
+        self.data_path = os.path.join('/'.join(p[:-1]), 'dataset/')
+        self.model_path = ''
         self.img_height =  480
         self.img_width = 640
         self.output_scale = 8
@@ -32,14 +34,14 @@ if __name__ == "__main__":
         'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
+        '--checkpoint', required=True, help='model path',
+    )
+    parser.add_argument(
         '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
-    )
-    parser.add_argument(
-        '--checkpoint', default='', help='model path',
     )
     parser.add_argument(
         '--img_input', default='', help='input image index, eg: 00001-1',
@@ -50,7 +52,7 @@ if __name__ == "__main__":
     options = Options()
     options.arch = args.arch if args.arch != '' else options.arch
     options.data_path = args.data_path if args.data_path != '' else options.data_path
-    options.model_path = args.checkpoint if args.checkpoint != '' else options.model_path
+    options.model_path = args.checkpoint
 
     ## get model
     if args.arch == 'resnet18' or args.arch == 'resnet34':

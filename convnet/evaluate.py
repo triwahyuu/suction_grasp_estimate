@@ -24,9 +24,11 @@ import matplotlib.patches as patches
 
 class Options(object):
     def __init__(self):
-        self.data_path = '/home/tri/skripsi/dataset/'
-        self.model_path = '/home/tri/skripsi/result/04_resnet18_dropout/20190429_222828/model_best.pth.tar'
-        self.test_img_path = '/home/tri/skripsi/dataset/test-split.txt'
+        p = os.path.dirname(os.path.abspath(__file__)).split('/')[:-1]
+        self.proj_path = '/'.join(p)
+        self.data_path = os.path.join('/'.join(p[:-1]), 'dataset/')
+        self.test_img_path = os.path.join(self.data_path, 'test-split.txt')
+        self.model_path = ''
         self.img_height =  480
         self.img_width = 640
         self.output_scale = 8
@@ -47,14 +49,14 @@ if __name__ == "__main__":
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
     )
     parser.add_argument(
-        '--checkpoint', default='', help='model path',
+        '--checkpoint', required=True, help='model path',
     )
     args = parser.parse_args()
 
     options = Options()
     options.arch = args.arch if args.arch != '' else options.arch
     options.data_path = args.data_path if args.data_path != '' else options.data_path
-    options.model_path = args.checkpoint if args.checkpoint != '' else options.model_path
+    options.model_path = args.checkpoint
 
     ## prepare plotting canvas
     if options.visualize:

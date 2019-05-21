@@ -42,8 +42,10 @@ except ImportError:
 
 class Options:
     def __init__(self):
-        self.data_path = '/home/tri/skripsi/dataset/'
-        self.sample_path = '/home/tri/skripsi/dataset/train-split.txt'
+        p = osp.dirname(osp.abspath(__file__)).split('/')[:-1]
+        self.proj_path = '/'.join(p)
+        self.data_path = osp.join('/'.join(p[:-1]), 'dataset/')
+        self.sample_path = osp.join(self.data_path, 'train-split.txt')
         self.img_height =  480
         self.img_width = 640
         self.batch_size = 2
@@ -353,8 +355,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     options = Options()
 
-    file_path = osp.dirname(osp.abspath(__file__))
-    result_path = '/home/tri/skripsi/suction_grasp_estimate/result'
+    result_path = osp.join(options.proj_path, 'result')
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     options.arch = args.arch
     device = torch.device("cpu" if args.use_cpu else "cuda:0")
