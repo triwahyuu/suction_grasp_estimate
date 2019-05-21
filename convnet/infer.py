@@ -3,6 +3,8 @@ from vis_util import visualize
 from utils import prepare_input
 from vis_util import post_process
 from models.model import SuctionModel18, SuctionModel50
+from models.model import SuctionRefineNet, SuctionRefineNetLW
+from models.model import SuctionPSPNet
 
 import os
 import argparse
@@ -21,11 +23,13 @@ class Options(object):
         self.img_height =  480
         self.img_width = 640
         self.output_scale = 8
+        self.n_class = 3
         self.arch = 'resnet18'
         self.device = 'cuda:0'
 
 if __name__ == "__main__":
-    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
+    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
+        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
@@ -53,6 +57,11 @@ if __name__ == "__main__":
         model = SuctionModel18(options)
     elif args.arch == 'resnet50' or args.arch == 'resnet101' or args.arch == 'resnet152':
         model = SuctionModel50(options)
+    elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
+        backbone = 'rfnet'
+        model = SuctionRefineNetLW(options)
+    elif args.arch == 'pspnet50' or args.arch == 'pspnet101':
+        model = SuctionPSPNet(options)
     checkpoint = torch.load(options.model_path)
     model.load_state_dict(checkpoint['model_state_dict'])
     
