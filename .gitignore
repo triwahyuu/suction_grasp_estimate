@@ -1,8 +1,9 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
-baseline/*.txt
-convnet/*.txt
+*/*.txt
+*/test.py
 
-result/
+result*/
+
 .vscode/

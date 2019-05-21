@@ -1,4 +1,9 @@
 ## TODO:
+## - implement mixed precision training with apex
+# https://github.com/NVIDIA/apex/blob/master/examples/imagenet/main_amp.py
+# https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html
+# https://devblogs.nvidia.com/mixed-precision-training-deep-neural-networks/
+# https://medium.com/the-artificial-impostor/use-nvidia-apex-for-easy-mixed-precision-training-in-pytorch-46841c6eed8c
 ## - optimize data loading: (later)
 # https://github.com/NVIDIA/DALI/blob/master/docs/examples/pytorch/resnet50/main.py
 # https://github.com/NVIDIA/apex/blob/master/examples/imagenet/main_amp.py
@@ -13,7 +18,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
-# from apex import fp16_utils
 
 from dataset import SuctionDatasetNew
 from models.model import SuctionModel18, SuctionModel50
@@ -29,6 +33,12 @@ import shutil
 import datetime
 import tqdm
 import argparse
+
+try:
+    from apex import amp
+    APEX_AVAILABLE = True
+except ImportError:
+    APEX_AVAILABLE = False
 
 class Options:
     def __init__(self):
@@ -112,12 +122,13 @@ class Trainer(object):
             with open(osp.join(self.output_path, 'log.csv'), 'w') as f:
                 f.write(','.join(self.log_headers) + '\n')
 
+        self.use_amp = APEX_AVAILABLE
         self.epoch = 0
         self.iteration = 0
         self.max_iter = max_iter
         self.max_epoch = max_epoch
         self.best_mean_iu = 0
-        self.best_loss = 0
+        self.best_loss = 999.999
         self.writer = SummaryWriter(log_dir=os.path.join(log_path, 'tb'))
         torch.manual_seed(1234)
 
@@ -257,7 +268,14 @@ class Trainer(object):
             self.optim.zero_grad()
             if self.backbone == 'rfnet':
                 self.optim_dec.zero_grad()
-            loss.backward()
+
+            # loss.backward()
+            if self.use_amp:
+                with amp.scale_loss(loss, self.optim) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
+                
             self.optim.step()
             if self.backbone == 'rfnet':
                 self.optim_dec.step()
@@ -331,6 +349,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--use-cpu', dest='use_cpu', action='store_true', help='use cpu on training',
     )
+    parser.add_argument('--opt-level', default='O2', type=str)
     args = parser.parse_args()
     options = Options()
 
@@ -405,6 +424,13 @@ if __name__ == "__main__":
             optim_enc.load_state_dict(checkpoint['optim_state_dict'])
             optim_dec.load_state_dict(checkpoint['optim_dec_state_dict'])
         optimizer = [optim_enc, optim_dec]
+    
+    
+    ## initialize amp
+    model, optimizer = amp.initialize(
+        model, optimizer, opt_level=args.opt_level, 
+        keep_batchnorm_fp32=True, loss_scale="dynamic"
+    )
 
     
     ## the main deal
