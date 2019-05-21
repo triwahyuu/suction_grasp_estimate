@@ -60,12 +60,12 @@ def BNtoFixed(m):
 class Trainer(object):
 
     def __init__(self, model, optimizers, loss, train_loader, val_loader, 
-                 output_path, log_path, max_iter, backbone='resnet',
+                 output_path, log_path, max_epoch=200, max_iter=None, backbone='resnet',
                  cuda=True, interval_validate=None, freeze_bn=True):
         self.cuda = cuda
 
         self.model = model
-        self.backbone = backbone    ## backbone: [resnet, rfnet]
+        self.backbone = backbone    ## backbone: [resnet, rfnet, pspnet]
         self.freeze_bn = freeze_bn
 
         ## if using rfnet, optimizers is an array of 2 optimizer
@@ -115,6 +115,7 @@ class Trainer(object):
         self.epoch = 0
         self.iteration = 0
         self.max_iter = max_iter
+        self.max_epoch = max_epoch
         self.best_mean_iu = 0
         self.best_loss = 0
         self.writer = SummaryWriter(log_dir=os.path.join(log_path, 'tb'))
@@ -287,19 +288,20 @@ class Trainer(object):
                 self.writer.add_scalar('train/fwacc', m[3], self.iteration//100)
                 m = []
 
-            if self.iteration >= self.max_iter:
+            if self.max_iter != None and self.iteration >= self.max_iter:
                 break
 
     def train(self):
         self.training = True
-        max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
+        self.max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader))) \
+            if self.max_iter != None else self.max_epoch
         if self.cuda:
             torch.cuda.empty_cache()
-        for epoch in tqdm.trange(self.epoch, max_epoch,
+        for epoch in tqdm.trange(self.epoch, self.max_epoch,
                                  desc='Train', ncols=80):
             self.epoch = epoch
             self.train_epoch()
-            if self.iteration >= self.max_iter:
+            if self.max_iter != None and self.iteration >= self.max_iter:
                 break
                 
 if __name__ == "__main__":
@@ -409,10 +411,10 @@ if __name__ == "__main__":
     trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
         train_loader=train_loader, val_loader=val_loader, backbone=backbone,
         output_path=os.path.join(result_path, now), log_path=result_path,
-        max_iter=500000, cuda=(not args.use_cpu))
+        max_epoch=60, cuda=(not args.use_cpu))
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     if args.resume != '':
         trainer.best_mean_iu = checkpoint['best_mean_iu']
-        # trainer.best_loss = checkpoint['best_loss']
+        trainer.best_loss = checkpoint['best_loss']
     trainer.train()
