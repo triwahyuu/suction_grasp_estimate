@@ -144,7 +144,7 @@ class Trainer(object):
         label_trues, label_preds = [], []
         for batch_idx, (input_img, target) in tqdm.tqdm(
                 enumerate(self.val_loader), total=len(self.val_loader),
-                desc='  validation %d' % self.iteration, ncols=80,
+                desc='  val %d' % self.epoch, ncols=80,
                 leave=False):
                 
             ## validate
@@ -220,11 +220,11 @@ class Trainer(object):
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
                         osp.join(self.output_path, 'model_loss_best.pth.tar'))
         
-        self.writer.add_scalar('val/loss', val_loss, self.iteration//self.interval_validate)
-        self.writer.add_scalar('val/accuracy', metrics[0], self.iteration//self.interval_validate)
-        self.writer.add_scalar('val/acc_class', metrics[1], self.iteration//self.interval_validate)
-        self.writer.add_scalar('val/mean_iu', metrics[2], self.iteration//self.interval_validate)
-        self.writer.add_scalar('val/fwacc', metrics[3], self.iteration//self.interval_validate)
+        self.writer.add_scalar('val/loss', val_loss, self.epoch)
+        self.writer.add_scalar('val/accuracy', metrics[0], self.epoch)
+        self.writer.add_scalar('val/acc_class', metrics[1], self.epoch)
+        self.writer.add_scalar('val/mean_iu', metrics[2], self.epoch)
+        self.writer.add_scalar('val/fwacc', metrics[3], self.epoch)
 
         if self.training:
             self.model.train()
@@ -242,12 +242,7 @@ class Trainer(object):
                 desc=' epoch %d' % self.epoch, ncols=80, leave=False):
             
             iteration = batch_idx + self.epoch * len(self.train_loader)
-            if self.iteration != 0 and (iteration - 1) != self.iteration:
-                continue  # for resuming
             self.iteration = iteration
-
-            if self.iteration % self.interval_validate == 0 and self.iteration != 0:
-                self.validate()
 
             ## prepare input and label
             input_img_var = [None, None]
@@ -320,7 +315,12 @@ class Trainer(object):
         for epoch in tqdm.trange(self.epoch, self.max_epoch,
                                  desc='Train', ncols=80):
             self.epoch = epoch
+            ## do training
             self.train_epoch()
+
+            ## validate
+            self.validate()
+
             if self.max_iter != None and self.iteration >= self.max_iter:
                 break
                 
@@ -429,6 +429,8 @@ if __name__ == "__main__":
     
 
     ## dataset
+    # if args.arch == 'resnet18' or args.arch == 'pspnet18':
+    #     options.batch_size = 4
     train_dataset = SuctionDatasetNew(options, mode='train')
     train_loader = DataLoader(train_dataset, batch_size=options.batch_size,
         shuffle=options.shuffle, num_workers=3)
@@ -444,7 +446,7 @@ if __name__ == "__main__":
     trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
         train_loader=train_loader, val_loader=val_loader, backbone=backbone,
         output_path=os.path.join(result_path, now), log_path=result_path,
-        max_epoch=50, cuda=(not args.use_cpu), use_amp=args.use_amp)
+        max_epoch=60, cuda=(not args.use_cpu), use_amp=args.use_amp)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     if args.resume != '':
