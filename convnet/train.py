@@ -326,7 +326,7 @@ class Trainer(object):
                 
 if __name__ == "__main__":
     model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
-        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101']
+        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
@@ -379,7 +379,8 @@ if __name__ == "__main__":
     elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
         backbone = 'rfnet'
         model = SuctionRefineNetLW(options)
-    elif args.arch == 'pspnet50' or args.arch == 'pspnet101':
+    elif args.arch == 'pspnet50' or args.arch == 'pspnet101' \
+            or args.arch == 'pspnet18' or args.arch == 'pspnet34':
         model = SuctionPSPNet(options)
     model.apply(BNtoFixed)
     model.to(device)

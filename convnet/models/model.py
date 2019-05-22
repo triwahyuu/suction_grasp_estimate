@@ -283,10 +283,10 @@ class SuctionPSPNet(nn.Module):
     def _create_trunk(self):
         resnet = resnet101(pretrained=True)
         if self.arch == 'pspnet18':
-            self.psp_size = 1024
+            self.psp_size = 512
             resnet = resnet18(pretrained=True)
         elif self.arch == 'pspnet34':
-            self.psp_size = 1024
+            self.psp_size = 512
             resnet = resnet34(pretrained=True)
         elif self.arch == 'pspnet50':
             resnet = resnet50(pretrained=True)

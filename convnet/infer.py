@@ -31,7 +31,7 @@ class Options(object):
 
 if __name__ == "__main__":
     model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
-        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101']
+        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--checkpoint', required=True, help='model path',
@@ -62,13 +62,15 @@ if __name__ == "__main__":
     elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
         backbone = 'rfnet'
         model = SuctionRefineNetLW(options)
-    elif args.arch == 'pspnet50' or args.arch == 'pspnet101':
+    elif args.arch == 'pspnet50' or args.arch == 'pspnet101' \
+            or args.arch == 'pspnet18' or args.arch == 'pspnet34':
         model = SuctionPSPNet(options)
-    checkpoint = torch.load(options.model_path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    
     model.eval()
     model.to(options.device)
+
+    ## get model weight
+    checkpoint = torch.load(options.model_path)
+    model.load_state_dict(checkpoint['model_state_dict'])
 
     ## get random or user selected image input 
     sample_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
