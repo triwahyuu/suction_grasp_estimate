@@ -132,7 +132,7 @@ class Trainer(object):
         self.best_mean_iu = 0
         self.best_loss = 999.999
         self.writer = SummaryWriter(log_dir=os.path.join(log_path, 'tb'))
-        torch.manual_seed(1234)
+        # torch.manual_seed(1234)
 
     def validate(self):
         self.model.eval()
@@ -384,6 +384,35 @@ if __name__ == "__main__":
     model.apply(BNtoFixed)
     model.to(device)
     
+    ## Loss
+    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
+
+    ## Optimizer
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+
+    if backbone == 'rfnet':
+        import re
+        enc_params = []
+        dec_params = []
+        for k,v in model.named_parameters():
+            if bool(re.match(".*conv1.*|.*bn1.*|.*layer.*", k)):
+                enc_params.append(v)
+            else:
+                dec_params.append(v)
+        optim_enc = optim.SGD(enc_params, lr=args.lr, momentum=args.momentum)
+        optim_dec = optim.SGD(dec_params, lr=args.lr, momentum=args.momentum)
+        optimizer = [optim_enc, optim_dec]
+
+
+    ## initialize amp
+    if args.use_amp:
+        model, optimizer = amp.initialize(
+            model, optimizer, opt_level=args.opt_level, 
+            keep_batchnorm_fp32=True, loss_scale="dynamic"
+        )
+    
+
+    ## resume training
     start_epoch = 0
     start_iteration = 0
     if args.resume != '':
@@ -391,6 +420,11 @@ if __name__ == "__main__":
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
+        if backbone == 'rfnet':
+            optim_enc.load_state_dict(checkpoint['optim_state_dict'])
+            optim_dec.load_state_dict(checkpoint['optim_dec_state_dict'])
+        else:
+            optimizer.load_state_dict(checkpoint['optim_state_dict'])
     
 
     ## dataset
@@ -403,39 +437,6 @@ if __name__ == "__main__":
         mode='val')
     val_loader = DataLoader(val_dataset, batch_size=options.batch_size,\
         shuffle=False, num_workers=3)
-
-    
-    ## Loss
-    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
-
-    ## Optimizer
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
-    if args.resume != '':
-        optimizer.load_state_dict(checkpoint['optim_state_dict'])
-
-    if backbone == 'rfnet':
-        import re
-        enc_params = []
-        dec_params = []
-        for k,v in model.named_parameters():
-                if bool(re.match(".*conv1.*|.*bn1.*|.*layer.*", k)):
-                    enc_params.append(v)
-                else:
-                    dec_params.append(v)
-        optim_enc = optim.SGD(enc_params, lr=args.lr, momentum=args.momentum)
-        optim_dec = optim.SGD(dec_params, lr=args.lr, momentum=args.momentum)
-        if args.resume != '':
-            optim_enc.load_state_dict(checkpoint['optim_state_dict'])
-            optim_dec.load_state_dict(checkpoint['optim_dec_state_dict'])
-        optimizer = [optim_enc, optim_dec]
-    
-    
-    ## initialize amp
-    if args.use_amp:
-        model, optimizer = amp.initialize(
-            model, optimizer, opt_level=args.opt_level, 
-            keep_batchnorm_fp32=True, loss_scale="dynamic"
-        )
 
     
     ## the main deal
