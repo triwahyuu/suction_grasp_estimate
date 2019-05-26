@@ -14,6 +14,7 @@ import torch
 import numpy as np
 from PIL import Image
 from skimage.transform import resize
+import scipy.special
 
 
 class Options(object):
@@ -44,7 +45,7 @@ if __name__ == "__main__":
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
     )
     parser.add_argument(
-        '--img_input', default='', help='input image index, eg: 00001-1',
+        '--img-input', default='', help='input image index, eg: 00001-1',
     )
     args = parser.parse_args()
     np.random.seed(int(time.time()))
@@ -92,6 +93,9 @@ if __name__ == "__main__":
     pred = resize(pred, (options.img_height, options.img_width), 
         anti_aliasing=True, mode='reflect')
     affordance = (pred - pred.min()) / (pred.max() - pred.min())
+    # aff_sigmoid = scipy.special.expit(pred)
+    # affordance = pred
+
 
     ## visualize
     print('post process...')

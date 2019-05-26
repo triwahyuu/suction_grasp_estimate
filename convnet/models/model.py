@@ -116,9 +116,10 @@ class SuctionRefineNet(nn.Module):
             nn.Dropout(0.25),
             nn.Conv2d(512, 128, kernel_size=3, stride=1, padding=1, bias=True),
             nn.Dropout(0.25),
-            nn.Conv2d(128, options.n_class, kernel_size=3, stride=1, padding=1, bias=True)
+            nn.Conv2d(128, options.n_class, kernel_size=3, stride=1, padding=1, bias=True),
+            nn.LogSoftmax()
         )
-        # updatePadding(self.feature, nn.ReflectionPad2d)
+        updatePadding(self.feature, nn.ReflectionPad2d)
 
     def forward(self, rgbd_input):
         rgb_feature = self.rgb_trunk(rgbd_input[0])
@@ -154,9 +155,10 @@ class SuctionRefineNetLW(nn.Module):
             nn.Dropout(0.25),
             nn.Conv2d(512, 128, kernel_size=3, stride=1, padding=1, bias=True),
             nn.Dropout(0.25),
-            nn.Conv2d(128, options.n_class, kernel_size=3, stride=1, padding=1, bias=True)
+            nn.Conv2d(128, options.n_class, kernel_size=3, stride=1, padding=1, bias=True),
+            nn.LogSoftmax()
         )
-        # updatePadding(self.feature, nn.ReflectionPad2d)
+        updatePadding(self.feature, nn.ReflectionPad2d)
 
     def forward(self, rgbd_input):
         rgb_feature = self.rgb_trunk(rgbd_input[0])
@@ -191,7 +193,8 @@ class SuctionModel18(nn.Module):
             nn.Threshold(0, 1e-6),
             nn.Dropout(0.25),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
-            Interpolate(scale=2, mode='bilinear')
+            Interpolate(scale=2, mode='bilinear'),
+            nn.LogSoftmax()
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
@@ -232,7 +235,8 @@ class SuctionModel50(nn.Module):
             nn.Threshold(0, 1e-6),
             nn.Dropout(0.25),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
-            Interpolate(scale=2, mode='bilinear')
+            Interpolate(scale=2, mode='bilinear'),
+            nn.LogSoftmax()
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
@@ -264,6 +268,7 @@ class SuctionPSPNet(nn.Module):
         super(SuctionPSPNet, self).__init__()
         self.arch = options.arch
         self.psp_size = 2048
+        self.softmax = nn.LogSoftmax()
         self.rgb_trunk = self._create_trunk()
         self.depth_trunk = self._create_trunk()
 
@@ -278,6 +283,7 @@ class SuctionPSPNet(nn.Module):
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
         
         out = self.segment(rgbd_parallel)
+        out = self.softmax(out)
         return out
 
     def _create_trunk(self):

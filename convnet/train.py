@@ -294,17 +294,16 @@ class Trainer(object):
                 f.write(','.join(log) + '\n')
             
             m.append(metrics)
-            if self.iteration % 100 == 0 and self.iteration != 0:
-                m = np.mean(np.array(m), axis=0)
-                self.writer.add_scalar('train/loss', loss_data, self.iteration//100)
-                self.writer.add_scalar('train/accuracy', m[0], self.iteration//100)
-                self.writer.add_scalar('train/acc_class', m[1], self.iteration//100)
-                self.writer.add_scalar('train/mean_iu', m[2], self.iteration//100)
-                self.writer.add_scalar('train/fwacc', m[3], self.iteration//100)
-                m = []
 
             if self.max_iter != None and self.iteration >= self.max_iter:
                 break
+        
+        m = np.mean(np.array(m), axis=0)
+        self.writer.add_scalar('train/loss', loss_data, self.epoch)
+        self.writer.add_scalar('train/accuracy', m[0], self.epoch)
+        self.writer.add_scalar('train/acc_class', m[1], self.epoch)
+        self.writer.add_scalar('train/mean_iu', m[2], self.epoch)
+        self.writer.add_scalar('train/fwacc', m[3], self.epoch)
 
     def train(self):
         self.training = True
@@ -386,7 +385,8 @@ if __name__ == "__main__":
     model.to(device)
     
     ## Loss
-    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
+    # criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
+    criterion = nn.NLLLoss2d(weight=torch.Tensor([1, 1, 0])).to(device)
 
     ## Optimizer
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
