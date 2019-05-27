@@ -16,6 +16,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
@@ -39,6 +40,11 @@ try:
     APEX_AVAILABLE = True
 except ImportError:
     APEX_AVAILABLE = False
+
+
+cudnn.benchmark = True
+cudnn.enabled = True
+
 
 class Options:
     def __init__(self):
@@ -132,7 +138,7 @@ class Trainer(object):
         self.best_mean_iu = 0
         self.best_loss = 999.999
         self.writer = SummaryWriter(log_dir=os.path.join(log_path, 'tb'))
-        # torch.manual_seed(1234)
+        torch.manual_seed(1234)
 
     def validate(self):
         self.model.eval()
@@ -332,7 +338,7 @@ if __name__ == "__main__":
         '--resume', default='', type=str, help='checkpoint path'
     )
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
+        '-a', '--arch', metavar='arch', default='resnet101', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
@@ -385,8 +391,7 @@ if __name__ == "__main__":
     model.to(device)
     
     ## Loss
-    # criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
-    criterion = nn.NLLLoss2d(weight=torch.Tensor([1, 1, 0])).to(device)
+    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
 
     ## Optimizer
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)

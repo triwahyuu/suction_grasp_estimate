@@ -38,7 +38,7 @@ if __name__ == "__main__":
         '--checkpoint', required=True, help='model path',
     )
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
+        '-a', '--arch', metavar='arch', default='resnet101', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
@@ -76,13 +76,17 @@ if __name__ == "__main__":
     ## get random or user selected image input 
     sample_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
     input_file = np.random.choice(sample_list, 1)[0] if args.img_input == '' else args.img_input
-    color = Image.open(os.path.join(options.data_path, 'color-input', input_file + '.png'))
-    depth = Image.open(os.path.join(options.data_path, 'depth-input', input_file + '.png'))
+    rgb_in = Image.open(os.path.join(options.data_path, 'color-input', input_file + '.png'))
+    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', input_file + '.png'))
+    depth_in = Image.open(os.path.join(options.data_path, 'depth-input', input_file + '.png'))
+    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', input_file + '.png'))
+    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', input_file + '.txt'))
 
-    img_input = prepare_input(color, depth, options.device)
+    img_input = prepare_input(rgb_in, depth_in, options.device)
 
     ## inference
     print('computing forward pass: ', input_file)
+    t = time.time()
     output = model(img_input)
 
     cls_pred = np.squeeze(output.data.max(1)[1].cpu().numpy(), axis=0).astype(np.float64)
@@ -93,20 +97,12 @@ if __name__ == "__main__":
     pred = resize(pred, (options.img_height, options.img_width), 
         anti_aliasing=True, mode='reflect')
     affordance = (pred - pred.min()) / (pred.max() - pred.min())
-    # aff_sigmoid = scipy.special.expit(pred)
-    # affordance = pred
 
 
-    ## visualize
     print('post process...')
-    rgb_in = Image.open(os.path.join(options.data_path, 'color-input', input_file + '.png'))
-    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', input_file + '.png'))
-    depth_in = Image.open(os.path.join(options.data_path, 'depth-input', input_file + '.png'))
-    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', input_file + '.png'))
-    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', input_file + '.txt'))
-
     surface_norm, affordance_map, cls_pred = post_process(affordance, cls_pred, rgb_in, rgb_bg,
         depth_in, depth_bg, cam_intrinsic)
+    print("inference time: ", time.time()-t)
     
     print('visualize...')
     visualize(affordance_map, surface_norm, cls_pred, np.array(rgb_in))

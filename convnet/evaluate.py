@@ -11,7 +11,7 @@ import time
 import tqdm
 
 import torch
-from torchvision.transforms import ToTensor, Normalize, Resize
+import torch.backends.cudnn as cudnn
 import numpy as np
 from PIL import Image
 from skimage.transform import resize
@@ -21,6 +21,9 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.patches as patches
 
+
+cudnn.benchmark = True
+cudnn.enabled = True
 
 class Options(object):
     def __init__(self):
@@ -42,7 +45,7 @@ if __name__ == "__main__":
         'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
+        '-a', '--arch', metavar='arch', default='resnet101', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
@@ -50,6 +53,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         '--checkpoint', required=True, help='model path',
+    )
+    parser.add_argument(
+        '--visualize', action='store_true', help='use amp on training',
     )
     args = parser.parse_args()
 
@@ -92,6 +98,7 @@ if __name__ == "__main__":
     test_len = len(test_img_list)
 
     metrics_data = np.zeros((test_len, 4), dtype=np.int64)  # [tp, tn, fp, fn]
+    inf_time = np.zeros((test_len,1), dtype=np.float64)     # inference + post process time
     for n, input_path in enumerate(test_img_list):
         print(input_path, "%d/%d: " % (n, test_len), end='  ')
         
@@ -104,6 +111,7 @@ if __name__ == "__main__":
         img_input = prepare_input(color_in, depth_in, options.device)
 
         ## forward pass
+        t = time.time()
         output = model(img_input)
 
         ## get segmentation class prediction
@@ -120,6 +128,7 @@ if __name__ == "__main__":
         ## post-processing
         surface_norm, affordance_map, cls_pred = post_process(affordance, cls_pred,
             color_in, color_bg, depth_in, depth_bg, cam_intrinsic)
+        inf_time[n,0] = time.time() - t
 
         affordance_map = gaussian_filter(affordance_map, 7)
         surface_norm = np.interp(surface_norm,
@@ -140,7 +149,7 @@ if __name__ == "__main__":
         recall = tp/(tp + fn) if (tp + fn) != 0 else 0
         iou = tp/(tp + fp + fn) if (tp + fp + fn) != 0 else 0
         metrics_data[n,:] = np.array([tp, tn, fp, fn])
-        print("%.8f  %.8f  %.8f" % (precision, recall, iou))
+        print("%.8f  %.8f  %.8f  %.8f" % (precision, recall, iou, inf_time[n,0]))
 
         ## visualize
         if options.visualize:
@@ -199,7 +208,8 @@ if __name__ == "__main__":
     precision = s[0]/(s[0]+s[2])
     recall = s[0]/(s[0]+s[3])
     mean_iou = s[0]/(s[0]+s[2]+s[3])
-    print(precision, recall, mean_iou)
+    print(precision, recall, mean_iou, np.sum(inf_time), np.mean(inf_time))
 
+    data = np.append(metrics_data, inf_time, axis=1)
     result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result.txt')
     np.savetxt(result_path, metrics_data, fmt='%.10f')
