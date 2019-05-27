@@ -55,18 +55,12 @@ def post_process(affordance_map, class_pred,
     ## get the foreground point cloud
     pcd = open3d.PointCloud()
     pcd.points = open3d.Vector3dVector(input_points)
-    open3d.estimate_normals(pcd, search_param=open3d.KDTreeSearchParamHybrid(radius = 0.1, max_nn = 50))
-    pcd_normals = np.asarray(pcd.normals)
-
+    open3d.geometry.estimate_normals(pcd,
+        search_param=open3d.KDTreeSearchParamHybrid(radius = 0.1, max_nn = 50)
+    )
     ## flip normals to point towards camera
-    center = [0,0,0]
-    for k in range(input_points.shape[0]):
-        p1 = center - input_points[k][:]
-        p2 = pcd_normals[k][:]
-        x = np.cross(p1,p2)
-        angle = np.arctan2(np.sqrt((x*x).sum()), p1.dot(p2.transpose()))
-        if (angle > -np.pi/2 and angle < np.pi/2):
-            pcd_normals[k][:] = -pcd_normals[k][:]
+    open3d.geometry.orient_normals_towards_camera_location(pcd, np.array([0.,0.,0.]))
+    pcd_normals = np.asarray(pcd.normals)
 
     ## reproject the normals back to image plane
     pix_x = np.round((input_points[:,0] * camera_intrinsic[0][0] / input_points[:,2] + camera_intrinsic[0][2]))
