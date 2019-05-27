@@ -97,8 +97,8 @@ if __name__ == "__main__":
     test_img_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
     test_len = len(test_img_list)
 
-    metrics_data = np.zeros((test_len, 4), dtype=np.int64)  # [tp, tn, fp, fn]
-    inf_time = np.zeros((test_len,1), dtype=np.float64)     # inference time
+    metrics_data = np.zeros((test_len, 5), dtype=np.int64)  # [tp, tn, fp, fn, memory]
+    inf_time = np.zeros((test_len,1), dtype=np.float64)     # inference + post-processing time
     for n, input_path in enumerate(test_img_list):
         print(input_path, "%d/%d: " % (n, test_len), end='  ')
         
@@ -113,7 +113,6 @@ if __name__ == "__main__":
         ## forward pass
         t = time.time()
         output = model(img_input)
-        inf_time[n,0] = time.time() - t
 
         ## get segmentation class prediction
         cls_pred = np.squeeze(output.data.max(1)[1].cpu().numpy(), axis=0).astype(np.float64)
@@ -124,11 +123,12 @@ if __name__ == "__main__":
         pred = np.squeeze(output.data.cpu().numpy(), axis=0)[1,:,:]
         pred = resize(pred, (options.img_height, options.img_width), 
             anti_aliasing=True, mode='reflect')
-        affordance = (pred - pred.min()) / (pred.max() - pred.min())
+        affordance = np.interp(pred, (pred.min(), pred.max()), (0.0, 1.0))
 
         ## post-processing
         surface_norm, affordance_map, cls_pred = post_process(affordance, cls_pred,
             color_in, color_bg, depth_in, depth_bg, cam_intrinsic)
+        inf_time[n,0] = time.time() - t
 
         affordance_map = gaussian_filter(affordance_map, 7)
         surface_norm = np.interp(surface_norm,
@@ -148,8 +148,10 @@ if __name__ == "__main__":
         precision = tp/(tp + fp) if (tp + fp) != 0 else 0
         recall = tp/(tp + fn) if (tp + fn) != 0 else 0
         iou = tp/(tp + fp + fn) if (tp + fp + fn) != 0 else 0
-        metrics_data[n,:] = np.array([tp, tn, fp, fn])
+        mem = torch.cuda.max_memory_allocated()
+        metrics_data[n,:] = np.array([tp, tn, fp, fn, mem])
         print("%.8f  %.8f  %.8f  %.8f" % (precision, recall, iou, inf_time[n,0]))
+        torch.cuda.reset_max_memory_allocated()
 
         ## visualize
         if options.visualize:
@@ -205,11 +207,16 @@ if __name__ == "__main__":
     
     metrics_data[np.isnan(metrics_data)] = 0
     s = np.sum(metrics_data, axis=0)
+    ave_mem = np.mean(metrics_data, axis=0)[4]
     precision = s[0]/(s[0]+s[2])
     recall = s[0]/(s[0]+s[3])
     mean_iou = s[0]/(s[0]+s[2]+s[3])
-    print(precision, recall, mean_iou, np.sum(inf_time), np.mean(inf_time))
+    print("   prec     recall     iou   ")
+    print("%.8f  %.8f  %.8f" % (precision, recall, mean_iou))
+    print("total processing time: ", np.sum(inf_time), "s")
+    print("inference time: ", np.mean(inf_time)*1000, "ms")
+    print("max GPU memory: ", ave_mem/2**30, "GB")
 
     data = np.append(metrics_data, inf_time, axis=1)
     result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result.txt')
-    np.savetxt(result_path, metrics_data, fmt='%.10f')
+    np.savetxt(result_path, data, fmt='%.12f')

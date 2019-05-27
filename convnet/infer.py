@@ -11,11 +11,15 @@ import argparse
 import time
 
 import torch
+import torch.backends.cudnn as cudnn
 import numpy as np
 from PIL import Image
 from skimage.transform import resize
 import scipy.special
 
+
+cudnn.benchmark = True
+cudnn.enabled = True
 
 class Options(object):
     def __init__(self):
@@ -35,7 +39,7 @@ if __name__ == "__main__":
         'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--checkpoint', required=True, help='model path',
+        '--checkpoint', required=False, default='../result/resnet101_00_best/20190503_162319/model_best.pth.tar', help='model path',
     )
     parser.add_argument(
         '-a', '--arch', metavar='arch', default='resnet101', choices=model_choices,
@@ -45,7 +49,7 @@ if __name__ == "__main__":
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
     )
     parser.add_argument(
-        '--img-input', default='', help='input image index, eg: 00001-1',
+        '--img-input', default='000599-0', help='input image index, eg: 00001-1',
     )
     args = parser.parse_args()
     np.random.seed(int(time.time()))
@@ -80,12 +84,13 @@ if __name__ == "__main__":
     rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', input_file + '.png'))
     depth_in = Image.open(os.path.join(options.data_path, 'depth-input', input_file + '.png'))
     depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', input_file + '.png'))
+    label = Image.open(os.path.join(options.data_path, 'label', input_file + '.png'))
     cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', input_file + '.txt'))
 
     img_input = prepare_input(rgb_in, depth_in, options.device)
 
     ## inference
-    print('computing forward pass: ', input_file)
+    print('computing inference: ', input_file)
     t = time.time()
     output = model(img_input)
 
@@ -96,13 +101,27 @@ if __name__ == "__main__":
     pred = np.squeeze(output.data.cpu().numpy(), axis=0)[1,:,:]
     pred = resize(pred, (options.img_height, options.img_width), 
         anti_aliasing=True, mode='reflect')
-    affordance = (pred - pred.min()) / (pred.max() - pred.min())
+    affordance = np.interp(pred, (pred.min(), pred.max()), (0.0, 1.0))
 
-
-    print('post process...')
+    ## post-processing
     surface_norm, affordance_map, cls_pred = post_process(affordance, cls_pred, rgb_in, rgb_bg,
         depth_in, depth_bg, cam_intrinsic)
-    print("inference time: ", time.time()-t)
+    tm = time.time() - t
+
+    affordance_img = (affordance_map * 255).astype(np.uint8)
+    label_np = np.asarray(label, dtype=np.uint8)
+    threshold = np.percentile(affordance_img, 99) ## top 1% prediction
+    tp = np.sum(np.logical_and((affordance_img > threshold), (label_np == 128)).astype(np.int))
+    fp = np.sum(np.logical_and((affordance_img > threshold), (label_np == 0)).astype(np.int))
+    tn = np.sum(np.logical_and((affordance_img <= threshold), (label_np == 0)).astype(np.int))
+    fn = np.sum(np.logical_and((affordance_img <= threshold), (label_np == 128)).astype(np.int))
+
+    precision = tp/(tp + fp) if (tp + fp) != 0 else 0
+    recall = tp/(tp + fn) if (tp + fn) != 0 else 0
+    iou = tp/(tp + fp + fn) if (tp + fp + fn) != 0 else 0
+    print("inference time: ", tm)
+    print("memory allocated: ", torch.cuda.max_memory_allocated()/2**30, "GB")
+    print("   prec       recall       iou   ")
+    print("%.8f  %.8f  %.8f" % (precision, recall, iou))
     
-    print('visualize...')
     visualize(affordance_map, surface_norm, cls_pred, np.array(rgb_in))
