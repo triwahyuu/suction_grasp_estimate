@@ -98,7 +98,7 @@ if __name__ == "__main__":
     test_len = len(test_img_list)
 
     metrics_data = np.zeros((test_len, 4), dtype=np.int64)  # [tp, tn, fp, fn]
-    inf_time = np.zeros((test_len,1), dtype=np.float64)     # inference + post process time
+    inf_time = np.zeros((test_len,1), dtype=np.float64)     # inference time
     for n, input_path in enumerate(test_img_list):
         print(input_path, "%d/%d: " % (n, test_len), end='  ')
         
@@ -113,6 +113,7 @@ if __name__ == "__main__":
         ## forward pass
         t = time.time()
         output = model(img_input)
+        inf_time[n,0] = time.time() - t
 
         ## get segmentation class prediction
         cls_pred = np.squeeze(output.data.max(1)[1].cpu().numpy(), axis=0).astype(np.float64)
@@ -128,7 +129,6 @@ if __name__ == "__main__":
         ## post-processing
         surface_norm, affordance_map, cls_pred = post_process(affordance, cls_pred,
             color_in, color_bg, depth_in, depth_bg, cam_intrinsic)
-        inf_time[n,0] = time.time() - t
 
         affordance_map = gaussian_filter(affordance_map, 7)
         surface_norm = np.interp(surface_norm,
