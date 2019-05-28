@@ -39,7 +39,7 @@ if __name__ == "__main__":
         'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--checkpoint', required=False, default='../result/resnet101_00_best/20190503_162319/model_best.pth.tar', help='model path',
+        '--checkpoint', required=True, help='model path',
     )
     parser.add_argument(
         '-a', '--arch', metavar='arch', default='resnet101', choices=model_choices,
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
     )
     parser.add_argument(
-        '--img-input', default='000599-0', help='input image index, eg: 00001-1',
+        '--img-input', default='', help='input image index, eg: 00001-1',
     )
     args = parser.parse_args()
     np.random.seed(int(time.time()))

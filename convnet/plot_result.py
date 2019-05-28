@@ -8,6 +8,9 @@ if __name__ == "__main__":
     parser.add_argument(
         '--result-path', default='', type=str, help='checkpoint path'
     )
+    parser.add_argument(
+        '--arch', default='', type=str, help='checkpoint path'
+    )
     args = parser.parse_args()
 
 
@@ -38,10 +41,10 @@ if __name__ == "__main__":
 
     loss_max = loss_tr_ave.max() if loss_tr_ave.max() > val_loss.max() else val_loss.max()
     loss_min = loss_tr_ave.min() if loss_tr_ave.min() < val_loss.min() else val_loss.min()
-    loss_lim = (loss_min-loss_max*0.05, loss_max+loss_max*0.05)
+    loss_lim = (loss_min-loss_max*0.025, loss_max+loss_max*0.025)
     iou_max = y_ave.max() if y_ave.max() > y_val.max() else y_val.max()
     iou_min = y_ave.min() if y_ave.min() < y_val.min() else y_val.min()
-    iou_lim = (iou_min-iou_max*0.05, iou_max+iou_max*0.05)
+    iou_lim = (iou_min-iou_max*0.025, iou_max+iou_max*0.025)
     
     # print(y.shape)
     # print('minimum train loss %.10f at %d idx' % (y_ave.min(), y_ave.argmin()))
@@ -51,12 +54,12 @@ if __name__ == "__main__":
     plt.plot(x_ave, y_ave, label="Training")
     plt.plot(x_val, y_val, label="Validation")
     plt.ylim(iou_lim)
-    plt.title('Mean IU')
+    plt.title("%s Mean IU" % (args.arch))
     plt.legend()
     plt.figure(2)
     plt.plot(x_ave, loss_tr_ave, label="Training")
     plt.plot(x_val, val_loss, label="Validation")
     plt.ylim(loss_lim)
-    plt.title('Loss')
+    plt.title('%s Loss' % (args.arch))
     plt.legend()
     plt.show()
