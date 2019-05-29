@@ -1,4 +1,4 @@
-## Suction Model
+## Suction Model main definition
 
 import torch
 import torch.nn as nn
@@ -6,6 +6,7 @@ from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet15
 from .rfnet import rfnet101, rfnet50
 from .rfnet_lw import rfnet_lw101, rfnet_lw50
 from .pspnet import PSPNet
+from .bisenet import BiSeNet, SpatialPath, build_contextpath
 
 ## source:
 # https://github.com/foolwood/deepmask-pytorch/blob/master/models/DeepMask.py
@@ -102,7 +103,127 @@ class Interpolate(nn.Module):
         x = self.interp(x, scale_factor=self.scale, mode=self.mode, align_corners=True)
         return x
 
-## Suction Model with RefineNet Backbone
+## Suction Model with ResNet18 or ResNet34 backbone
+class SuctionModel18(nn.Module):
+    def __init__(self, options):
+        super(SuctionModel18, self).__init__()
+        self.arch = options.arch
+        self.rgb_trunk = self._create_trunk()
+        self.depth_trunk = self._create_trunk()
+
+        self.feature = nn.Sequential(
+            nn.Dropout(0.25),
+            nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
+            nn.Dropout(0.4),
+            nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
+            Interpolate(scale=2, mode='bilinear')
+        )
+        updatePadding(self.feature, nn.ReflectionPad2d)
+
+    def forward(self, rgbd_input):
+        rgb_feature = self.rgb_trunk(rgbd_input[0])
+        depth_feature = self.depth_trunk(rgbd_input[1])
+
+        # concatenate rgb and depth input
+        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
+
+        out = self.feature(rgbd_parallel)
+        return out
+
+    def _create_trunk(self):
+        resnet = resnet18(pretrained=True)
+        if self.arch == 'resnet34':
+            resnet = resnet34(pretrained=True)
+        ## removing classifier layers
+        m = nn.Sequential(*(list(resnet.children())[:-3]))
+        updatePadding(m, nn.ReflectionPad2d)
+        # m = resnet
+        return m
+
+
+## Suction Model with ResNet50, ResNet101, or ResNet152 backbone
+class SuctionModel50(nn.Module):
+    def __init__(self, options):
+        super(SuctionModel50, self).__init__()
+        self.arch = options.arch
+        self.rgb_trunk = self._create_trunk()
+        self.depth_trunk = self._create_trunk()
+
+        self.feature = nn.Sequential(
+            nn.Dropout(0.25),
+            nn.Conv2d(2048, 512, kernel_size=(1,1), stride=(1,1)),
+            nn.Dropout(0.25),
+            nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
+            nn.Dropout(0.4),
+            nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
+            Interpolate(scale=2, mode='bilinear')
+        )
+        updatePadding(self.feature, nn.ReflectionPad2d)
+
+    def forward(self, rgbd_input):
+        rgb_feature = self.rgb_trunk(rgbd_input[0])
+        depth_feature = self.depth_trunk(rgbd_input[1])
+
+        # concatenate rgb and depth input
+        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
+
+        out = self.feature(rgbd_parallel)
+        return out
+
+    def _create_trunk(self):
+        resnet = resnet101(pretrained=True)
+        if self.arch == 'resnet50':
+            resnet = resnet50(pretrained=True)
+        elif self.arch == 'resnet152':
+            resnet = resnet152(pretrained=True)
+        ## removing classifier layers
+        m = nn.Sequential(*(list(resnet.children())[:-3]))
+        updatePadding(m, nn.ReflectionPad2d)
+        # m = resnet
+        return m
+
+## Suction Model with ResNet backbone and PSPNet as feature map
+class SuctionPSPNet(nn.Module):
+    def __init__(self, options):
+        super(SuctionPSPNet, self).__init__()
+        self.arch = options.arch
+        self.psp_size = 2048
+        self.rgb_trunk = self._create_trunk()
+        self.depth_trunk = self._create_trunk()
+
+        self.segment = PSPNet(n_classes=options.n_class, psp_size=self.psp_size)
+        updatePadding(self.segment, nn.ReflectionPad2d)
+
+    def forward(self, rgbd_input):
+        rgb_feature = self.rgb_trunk(rgbd_input[0])
+        depth_feature = self.depth_trunk(rgbd_input[1])
+
+        # concatenate rgb and depth input
+        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
+        
+        out = self.segment(rgbd_parallel)
+        return out
+
+    def _create_trunk(self):
+        resnet = resnet101(pretrained=True)
+        if self.arch == 'pspnet18':
+            self.psp_size = 512
+            resnet = resnet18(pretrained=True)
+        elif self.arch == 'pspnet34':
+            self.psp_size = 512
+            resnet = resnet34(pretrained=True)
+        elif self.arch == 'pspnet50':
+            resnet = resnet50(pretrained=True)
+        elif self.arch == 'pspnet152':
+            resnet = resnet152(pretrained=True)
+        ## removing classifier layers
+        m = nn.Sequential(*(list(resnet.children())[:-3]))
+        updatePadding(m, nn.ReflectionPad2d)
+        # m = resnet
+        return m
+
+
+## Suction Model with RefineNet as feature map
 class SuctionRefineNet(nn.Module):
     def __init__(self, options):
         super(SuctionRefineNet, self).__init__()
@@ -177,122 +298,70 @@ class SuctionRefineNetLW(nn.Module):
         m = rfnet
         return m
 
-## Suction Model with ResNet18 or ResNet34 backbone
-class SuctionModel18(nn.Module):
+
+class SuctionBiseNet(nn.Module):
     def __init__(self, options):
-        super(SuctionModel18, self).__init__()
+        super(SuctionBiseNet).__init__()
         self.arch = options.arch
+
         self.rgb_trunk = self._create_trunk()
         self.depth_trunk = self._create_trunk()
 
-        self.feature = nn.Sequential(
-            nn.Dropout(0.25),
-            nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
-            nn.Dropout(0.4),
-            nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
-            Interpolate(scale=2, mode='bilinear')
-        )
-        updatePadding(self.feature, nn.ReflectionPad2d)
-
-    def forward(self, rgbd_input):
-        rgb_feature = self.rgb_trunk(rgbd_input[0])
-        depth_feature = self.depth_trunk(rgbd_input[1])
-
-        # concatenate rgb and depth input
-        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
-
-        out = self.feature(rgbd_parallel)
-        return out
-
-    def _create_trunk(self):
-        resnet = resnet18(pretrained=True)
-        if self.arch == 'resnet34':
-            resnet = resnet34(pretrained=True)
-        ## removing classifier layers
-        m = nn.Sequential(*(list(resnet.children())[:-3]))
-        updatePadding(m, nn.ReflectionPad2d)
-        # m = resnet
-        return m
-
-
-## Suction Model with ResNet50, ResNet101, or ResNet152 backbone
-class SuctionModel50(nn.Module):
-    def __init__(self, options):
-        super(SuctionModel50, self).__init__()
-        self.arch = options.arch
-        self.rgb_trunk = self._create_trunk()
-        self.depth_trunk = self._create_trunk()
-
-        self.feature = nn.Sequential(
-            nn.Dropout(0.25),
-            nn.Conv2d(2048, 512, kernel_size=(1,1), stride=(1,1)),
-            nn.Dropout(0.25),
-            nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
-            # nn.Threshold(0, 1e-6),
-            nn.Dropout(0.4),
-            nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
-            Interpolate(scale=2, mode='bilinear')
-        )
-        updatePadding(self.feature, nn.ReflectionPad2d)
-
-    def forward(self, rgbd_input):
-        rgb_feature = self.rgb_trunk(rgbd_input[0])
-        depth_feature = self.depth_trunk(rgbd_input[1])
-
-        # concatenate rgb and depth input
-        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
-
-        out = self.feature(rgbd_parallel)
-        return out
-
-    def _create_trunk(self):
-        resnet = resnet101(pretrained=True)
-        if self.arch == 'resnet50':
-            resnet = resnet50(pretrained=True)
-        elif self.arch == 'resnet152':
-            resnet = resnet152(pretrained=True)
-        ## removing classifier layers
-        m = nn.Sequential(*(list(resnet.children())[:-3]))
-        updatePadding(m, nn.ReflectionPad2d)
-        # m = resnet
-        return m
-
-## Suction Model with ResNet backbone and PSPNet Segmentor
-class SuctionPSPNet(nn.Module):
-    def __init__(self, options):
-        super(SuctionPSPNet, self).__init__()
-        self.arch = options.arch
-        self.psp_size = 2048
-        self.rgb_trunk = self._create_trunk()
-        self.depth_trunk = self._create_trunk()
-
-        self.segment = PSPNet(n_classes=options.n_class, psp_size=self.psp_size)
-        updatePadding(self.segment, nn.ReflectionPad2d)
-
-    def forward(self, rgbd_input):
-        rgb_feature = self.rgb_trunk(rgbd_input[0])
-        depth_feature = self.depth_trunk(rgbd_input[1])
-
-        # concatenate rgb and depth input
-        rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
+        self.rgb_spatial = SpatialPath()
+        self.depth_spatial = SpatialPath()
         
-        out = self.segment(rgbd_parallel)
-        return out
+        self.segment = BiSeNet(options.n_class, options.arch)
+        updatePadding(self.segment, nn.ReflectionPad2d)
+    
+    def forward(self, rgbd_input):
+        # context path
+        rgb_cx1, rgb_cx2, rgb_tail = self.rgb_trunk(rgbd_input[0])
+        depth_cx1, depth_cx2, depth_tail = self.depth_trunk(rgbd_input[1])
 
+        # spatial path
+        rgb_sx = self.rgb_spatial(rgbd_input[0])
+        depth_sx = self.depth_spatial(rgbd_input[1])
+
+        # concatenate rgb and depth
+        rgbd_cx1 = torch.cat((rgb_cx1, depth_cx1), 1)
+        rgbd_cx2 = torch.cat((rgb_cx2, depth_cx2), 1)
+        rgbd_tail = torch.cat((rgb_tail, depth_tail), 1)
+        rgbd_sx = torch.cat((rgb_sx, depth_sx), 1)
+        
+        out = self.segment(rgbd_sx, rgbd_cx1, rgbd_cx2, rgbd_tail)   
+        return out
+    
     def _create_trunk(self):
-        resnet = resnet101(pretrained=True)
-        if self.arch == 'pspnet18':
-            self.psp_size = 512
-            resnet = resnet18(pretrained=True)
-        elif self.arch == 'pspnet34':
-            self.psp_size = 512
-            resnet = resnet34(pretrained=True)
-        elif self.arch == 'pspnet50':
-            resnet = resnet50(pretrained=True)
-        elif self.arch == 'pspnet152':
-            resnet = resnet152(pretrained=True)
-        ## removing classifier layers
-        m = nn.Sequential(*(list(resnet.children())[:-3]))
+        m = build_contextpath(self.arch)
         updatePadding(m, nn.ReflectionPad2d)
-        # m = resnet
         return m
+
+
+## [TODO]: build ICENet
+class SuctionICENet(nn.Module):
+    def __init__(self, options):
+        pass
+    
+    def forward(self, rgbd_input):
+        pass
+    
+    def _create_trunk(self):
+        pass
+
+
+
+def build_model(arch, options):
+    model = None
+    if arch in ['resnet18', 'resnet34']:
+        model = SuctionModel18(options)
+    elif arch in ['resnet50', 'resnet101', 'resnet152']:
+        model = SuctionModel50(options)
+    elif arch in ['rfnet50', 'rfnet101', 'rfnet152']:
+        model = SuctionRefineNetLW(options)
+    elif arch in ['pspnet18', 'pspnet34', 'pspnet50', 'pspnet101']:
+        model = SuctionPSPNet(options)
+    elif arch in ['bisenet18', 'bisenet34', 'bisenet50', 'bisenet101']:
+        model = SuctionBiseNet(options)
+    else:
+        raise Exception('Error: model %s is not supported' % (arch))
+    return model
