@@ -337,8 +337,8 @@ class SuctionBiseNet(nn.Module):
         return m
 
 
-## [TODO]: build ICENet
-class SuctionICENet(nn.Module):
+## [TODO]: build ICNet
+class SuctionICNet(nn.Module):
     def __init__(self, options):
         pass
     
@@ -362,6 +362,8 @@ def build_model(arch, options):
         model = SuctionPSPNet(options)
     elif arch in ['bisenet18', 'bisenet34', 'bisenet50', 'bisenet101']:
         model = SuctionBiseNet(options)
+    elif arch in ['icnet18', 'icnet34', 'icnet50', 'icnet101']:
+        model = SuctionICNet(options)
     else:
         raise Exception('Error: model %s is not supported' % (arch))
     return model
