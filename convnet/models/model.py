@@ -188,8 +188,7 @@ class SuctionModel18(nn.Module):
         self.feature = nn.Sequential(
             nn.Dropout(0.25),
             nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
-            nn.Threshold(0, 1e-6),
-            nn.Dropout(0.25),
+            nn.Dropout(0.4),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
             Interpolate(scale=2, mode='bilinear')
         )
@@ -229,8 +228,8 @@ class SuctionModel50(nn.Module):
             nn.Conv2d(2048, 512, kernel_size=(1,1), stride=(1,1)),
             nn.Dropout(0.25),
             nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
-            nn.Threshold(0, 1e-6),
-            nn.Dropout(0.25),
+            # nn.Threshold(0, 1e-6),
+            nn.Dropout(0.4),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
             Interpolate(scale=2, mode='bilinear')
         )
