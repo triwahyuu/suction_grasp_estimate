@@ -21,9 +21,7 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
 from dataset import SuctionDatasetNew
-from models.model import SuctionModel18, SuctionModel50
-from models.model import SuctionRefineNet, SuctionRefineNetLW
-from models.model import SuctionPSPNet
+from models.model import build_model
 from utils import label_accuracy_score
 
 import pytz
@@ -375,18 +373,10 @@ if __name__ == "__main__":
         result_path = args.result_path
 
     ## prepare model
-    model = None
+    model = build_model(args.arch, options)
     backbone = 'resnet'
-    if args.arch == 'resnet18' or args.arch == 'resnet34':
-        model = SuctionModel18(options)
-    elif args.arch == 'resnet50' or args.arch == 'resnet101' or args.arch == 'resnet152':
-        model = SuctionModel50(options)
-    elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
+    if args.arch in ['rfnet50', 'rfnet101', 'rfnet152']:
         backbone = 'rfnet'
-        model = SuctionRefineNetLW(options)
-    elif args.arch == 'pspnet50' or args.arch == 'pspnet101' \
-            or args.arch == 'pspnet18' or args.arch == 'pspnet34':
-        model = SuctionPSPNet(options)
     model.apply(BNtoFixed)
     model.to(device)
     
