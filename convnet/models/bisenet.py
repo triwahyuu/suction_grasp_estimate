@@ -10,7 +10,7 @@ import warnings
 warnings.filterwarnings(action='ignore')
 
 
-class ResNet(torch.nn.Module):
+class ResNet(nn.Module):
     def __init__(self, arch='resnet18',pretrained=True):
         super().__init__()
         features = None
@@ -50,7 +50,7 @@ def build_contextpath(arch):
         model = ResNet(arch=arch)
     return model
 
-class ConvBlock(torch.nn.Module):
+class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=2,padding=1):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
@@ -61,7 +61,7 @@ class ConvBlock(torch.nn.Module):
         x = self.conv1(input)
         return self.relu(self.bn(x))
 
-class SpatialPath(torch.nn.Module):
+class SpatialPath(nn.Module):
     def __init__(self):
         super().__init__()
         self.convblock1 = ConvBlock(in_channels=3, out_channels=64)
@@ -74,7 +74,7 @@ class SpatialPath(torch.nn.Module):
         x = self.convblock3(x)
         return x
 
-class AttentionRefinementModule(torch.nn.Module):
+class AttentionRefinementModule(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
@@ -95,7 +95,7 @@ class AttentionRefinementModule(torch.nn.Module):
         return x
 
 
-class FeatureFusionModule(torch.nn.Module):
+class FeatureFusionModule(nn.Module):
     def __init__(self, num_classes, in_channels):
         super().__init__()
         # self.in_channels = input_1.channels + input_2.channels
@@ -126,13 +126,11 @@ class FeatureFusionModule(torch.nn.Module):
 class BiSeNet(torch.nn.Module):
     def __init__(self, num_classes, context_path):
         super().__init__()
-        # build spatial path
-        # self.spatial_path = Spatial_path()
 
         # build attention refinement module  for resnet 101
         if context_path in ['resnet101', 'resnet50']:
-            self.attention_refinement_module1 = AttentionRefinementModule(2048, 2048)
-            self.attention_refinement_module2 = AttentionRefinementModule(4096, 4096)
+            self.attention_refinement_module1 = AttentionRefinementModule(1024, 1024)
+            self.attention_refinement_module2 = AttentionRefinementModule(2048, 2048)
             # supervision block
             self.supervision1 = nn.Conv2d(in_channels=1024, out_channels=num_classes, kernel_size=1)
             self.supervision2 = nn.Conv2d(in_channels=2048, out_channels=num_classes, kernel_size=1)
@@ -140,10 +138,13 @@ class BiSeNet(torch.nn.Module):
             self.feature_fusion_module = FeatureFusionModule(num_classes, 3328)
 
         elif context_path in ['resnet18', 'resnet34']:
-            # build attention refinement module  for resnet 18
-            self.attention_refinement_module1 = AttentionRefinementModule(256, 256)
-            self.attention_refinement_module2 = AttentionRefinementModule(512, 512)
-            # build feature fusion module
+            ## build attention refinement module  for resnet 18
+            self.attention_refinement_module1 = AttentionRefinementModule(512, 512)
+            self.attention_refinement_module2 = AttentionRefinementModule(1024, 1024)
+            ## supervision block
+            self.supervision1 = nn.Conv2d(in_channels=512, out_channels=num_classes, kernel_size=1)
+            self.supervision2 = nn.Conv2d(in_channels=1024, out_channels=num_classes, kernel_size=1)
+            ## build feature fusion module
             self.feature_fusion_module = FeatureFusionModule(num_classes, 1024)
         else:
             raise Exception('Error: context_path %s is unsupported' % (context_path))
@@ -153,14 +154,23 @@ class BiSeNet(torch.nn.Module):
 
 
     def forward(self, sx, cx1, cx2, tail):
-        # output of context path
+        ## sx -> spatial_path output
+        ## cx1, cx2, tail -> contex_path output
+        ## output of context path
         cx1 = self.attention_refinement_module1(cx1)
         cx2 = self.attention_refinement_module2(cx2)
         cx2 = torch.mul(cx2, tail)
-        # upsampling
+        
+        ## upsampling
         cx1 = torch.nn.functional.interpolate(cx1, scale_factor=2, mode='bilinear')
         cx2 = torch.nn.functional.interpolate(cx2, scale_factor=4, mode='bilinear')
         cx = torch.cat((cx1, cx2), dim=1)
+
+        if self.training == True:
+            cx1_sup = self.supervision1(cx1)
+            cx2_sup = self.supervision2(cx2)
+            cx1_sup = torch.nn.functional.interpolate(cx1_sup, scale_factor=8, mode='bilinear')
+            cx2_sup = torch.nn.functional.interpolate(cx2_sup, scale_factor=8, mode='bilinear')
 
         # output of feature fusion module
         result = self.feature_fusion_module(sx, cx)
@@ -169,4 +179,7 @@ class BiSeNet(torch.nn.Module):
         result = torch.nn.functional.interpolate(result, scale_factor=8, mode='bilinear')
         result = self.conv(result)
 
+        if self.training == True:
+            return result, cx1_sup, cx2_sup
+        
         return result

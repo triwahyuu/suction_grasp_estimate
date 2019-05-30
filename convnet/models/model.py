@@ -301,8 +301,9 @@ class SuctionRefineNetLW(nn.Module):
 
 class SuctionBiseNet(nn.Module):
     def __init__(self, options):
-        super(SuctionBiseNet).__init__()
+        super(SuctionBiseNet, self).__init__()
         self.arch = options.arch
+        self.backbone = options.arch.replace('bisenet', 'resnet')
 
         self.rgb_trunk = self._create_trunk()
         self.depth_trunk = self._create_trunk()
@@ -310,29 +311,29 @@ class SuctionBiseNet(nn.Module):
         self.rgb_spatial = SpatialPath()
         self.depth_spatial = SpatialPath()
         
-        self.segment = BiSeNet(options.n_class, options.arch)
+        self.segment = BiSeNet(options.n_class, self.backbone)
         updatePadding(self.segment, nn.ReflectionPad2d)
     
     def forward(self, rgbd_input):
-        # context path
+        ## context path
         rgb_cx1, rgb_cx2, rgb_tail = self.rgb_trunk(rgbd_input[0])
         depth_cx1, depth_cx2, depth_tail = self.depth_trunk(rgbd_input[1])
 
-        # spatial path
+        ## spatial path
         rgb_sx = self.rgb_spatial(rgbd_input[0])
         depth_sx = self.depth_spatial(rgbd_input[1])
 
-        # concatenate rgb and depth
+        ## concatenate rgb and depth
         rgbd_cx1 = torch.cat((rgb_cx1, depth_cx1), 1)
         rgbd_cx2 = torch.cat((rgb_cx2, depth_cx2), 1)
         rgbd_tail = torch.cat((rgb_tail, depth_tail), 1)
         rgbd_sx = torch.cat((rgb_sx, depth_sx), 1)
         
-        out = self.segment(rgbd_sx, rgbd_cx1, rgbd_cx2, rgbd_tail)   
+        out = self.segment(rgbd_sx, rgbd_cx1, rgbd_cx2, rgbd_tail)
         return out
     
     def _create_trunk(self):
-        m = build_contextpath(self.arch)
+        m = build_contextpath(self.backbone)
         updatePadding(m, nn.ReflectionPad2d)
         return m
 

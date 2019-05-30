@@ -76,27 +76,41 @@ def BNtoFixed(m):
 class Trainer(object):
 
     def __init__(self, model, optimizers, loss, train_loader, val_loader, 
-                 output_path, log_path, max_epoch=200, max_iter=None, backbone='resnet',
-                 cuda=True, interval_validate=None, freeze_bn=True, use_amp=False):
+                 output_path, log_path, max_epoch=200, max_iter=None, arch='resnet18',
+                 cuda=True, interval_validate=None, freeze_bn=True, use_amp=False, 
+                 **kwargs):
         self.cuda = cuda
 
         self.model = model
-        self.backbone = backbone    ## backbone: [resnet, rfnet, pspnet]
+        self.arch = arch
         self.freeze_bn = freeze_bn
 
         ## if using rfnet, optimizers is an array of 2 optimizer
         ## optimizer for encoder and decoder
         self.optim = optimizers
         self.optim_dec = None
-        if self.backbone == 'rfnet':
+        if 'rfnet' in self.arch:
             self.optim = optimizers[0]
             self.optim_dec = optimizers[1]
 
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.criterion = loss
-        if self.cuda:
-            self.criterion = self.criterion.cuda()
+
+        ## criterion
+        self.alphas = None
+        self.lambdas = None
+        if 'bisenet' in self.arch:
+            self.criterion = loss[0].cuda() if self.cuda else loss[0]
+            self.crit_aux1 = loss[1].cuda() if self.cuda else loss[1]
+            self.crit_aux2 = loss[2].cuda() if self.cuda else loss[2]
+            self.alphas = kwargs['loss_params']
+        elif 'icnet' in self.arch:
+            self.criterion = loss[2].cuda() if self.cuda else loss[2]
+            self.crit_sub24 = loss[1].cuda() if self.cuda else loss[1]
+            self.crit_sub4 = loss[0].cuda() if self.cuda else loss[0]
+            self.lambdas = kwargs['loss_params']
+        else:
+            self.criterion = loss.cuda() if self.cuda else loss
 
         self.timestamp_start = datetime.datetime.now(pytz.timezone('Asia/Jakarta'))
         self.training = False
@@ -153,15 +167,13 @@ class Trainer(object):
                 
             ## validate
             with torch.no_grad():
-                input_img_var = [None, None]
                 if self.cuda:
                     input_img[0], input_img[1], target = input_img[0].cuda(), input_img[1].cuda(), target.cuda()
-                input_img_var[0] = torch.autograd.Variable(input_img[0]).float()
-                input_img_var[1] = torch.autograd.Variable(input_img[1]).float()
 
-                output = self.model(input_img_var)
+                output = self.model(input_img)
                 output = nn.functional.interpolate(output, size=target.size()[1:],
                     mode='bilinear', align_corners=False)
+
                 loss = self.criterion(output, target)
                 loss_data = loss.data.item()
                 if np.isnan(loss_data):
@@ -205,7 +217,7 @@ class Trainer(object):
             'best_mean_iu': self.best_mean_iu,
             'best_loss': self.best_loss,
         }, osp.join(self.output_path, 'checkpoint.pth.tar'))
-        if self.backbone == 'rfnet':
+        if self.arch == 'rfnet':
             torch.save({
             'epoch': self.epoch,
             'iteration': self.iteration,
@@ -249,28 +261,60 @@ class Trainer(object):
             self.iteration = iteration
 
             ## prepare input and label
-            input_img_var = [None, None]
             if self.cuda:
                 input_img[0], input_img[1] = input_img[0].cuda(), input_img[1].cuda()
                 target = target.cuda()
-            input_img_var[0] = torch.autograd.Variable(input_img[0]).float()
-            input_img_var[1] = torch.autograd.Variable(input_img[1]).float()
-            target_var = torch.autograd.Variable(target).long()
 
             ## main training function
             ## compute output of feed forward
-            output = self.model(input_img_var)
-            output = nn.functional.interpolate(output, size=target_var.size()[1:],
-                mode='bilinear', align_corners=False)
+            output = self.model(input_img)
+            if 'bisenet' in self.arch:
+                out_sup1 = nn.functional.interpolate( # supervise 1 output
+                    output[1], size=target.size()[1:], mode='bilinear', align_corners=False
+                )
+                out_sup2 = nn.functional.interpolate( # supervise 2 output
+                    output[2], size=target.size()[1:], mode='bilinear', align_corners=False
+                )
+                output = nn.functional.interpolate( # main output
+                    output[0], size=target.size()[1:], mode='bilinear', align_corners=False
+                )
+            elif 'icnet' in self.arch:
+                out_sub24 = nn.functional.interpolate(
+                    output[1], size=target.size()[1:], mode='bilinear', align_corners=False
+                )
+                out_sub4 = nn.functional.interpolate(
+                    output[2], size=target.size()[1:], mode='bilinear', align_corners=False
+                )
+                output = nn.functional.interpolate(
+                    output[0], size=target.size()[1:], mode='bilinear', align_corners=False
+                )
+            else:
+                output = nn.functional.interpolate(
+                    output, size=target.size()[1:], mode='bilinear', align_corners=False
+                )
 
             ## compute loss and backpropagate
-            loss = self.criterion(output, target_var)
+            loss = None
+            if 'bisenet' in self.arch:
+                loss_p = self.criterion(output, target)
+                loss_a1 = self.crit_aux1(out_sup1, target)
+                loss_a2 = self.crit_aux2(out_sup2, target)
+                loss = loss_p + self.alphas[0] * loss_a1 + self.alphas[1] * loss_a2
+            elif 'icnet' in self.arch:
+                loss_sub124 = self.criterion(output, target)
+                loss_sub24 = self.crit_sub24(out_sub24, target)
+                loss_sub4 = self.crit_sub4(out_sub4, target)
+                loss = self.lambdas[0] * loss_sub4 + \
+                       self.lambdas[1] * loss_sub24 + \
+                       self.lambdas[2] * loss_sub124
+            else:
+                loss = self.criterion(output, target)
+
             loss_data = loss.data.item()
             self.optim.zero_grad()
-            if self.backbone == 'rfnet':
+            if 'rfnet' in self.arch:
                 self.optim_dec.zero_grad()
 
-            # loss.backward()
             if self.use_amp:
                 with amp.scale_loss(loss, self.optim) as scaled_loss:
                     scaled_loss.backward()
@@ -278,7 +322,7 @@ class Trainer(object):
                 loss.backward()
                 
             self.optim.step()
-            if self.backbone == 'rfnet':
+            if 'rfnet' in self.arch:
                 self.optim_dec.step()
 
             ## the stats
@@ -328,8 +372,13 @@ class Trainer(object):
                 break
                 
 if __name__ == "__main__":
-    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
-        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
+    model_choices = [
+        'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
+        'rfnet50', 'rfnet101', 'rfnet152', 
+        'pspnet18', 'pspnet34', 'pspnet50', 'pspnet101',
+        'bisenet18', 'bisenet34', 'bisenet50', 'bisenet101',
+        'icnet18', 'icnet34', 'icnet50', 'icnet101',
+    ]
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
@@ -374,19 +423,37 @@ if __name__ == "__main__":
 
     ## prepare model
     model = build_model(args.arch, options)
-    backbone = 'resnet'
-    if args.arch in ['rfnet50', 'rfnet101', 'rfnet152']:
-        backbone = 'rfnet'
     model.apply(BNtoFixed)
     model.to(device)
+
+    ## [TODO]
+    """
+    bisenet -> training loss needs 3 CrossEntropyLoss for each training output
+    icnet -> training loss needs 3 CrossEntropyLoss with mean reduced for each training output 
+        + reduced loss with lambda multiplier on each loss before
+    """
     
     ## Loss
-    criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
+    loss_params = None
+    if 'bisenet' in args.arch:
+        crit_principal = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        crit_aux1 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        crit_aux2 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        criterion = [crit_principal, crit_aux1, crit_aux2]
+        loss_params = [1, 1]    # aux1, aux2
+    elif 'icnet' in args.arch:
+        crit_sub4 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        crit_sub24 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        crit_sub124 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        criterion = [crit_sub4, crit_sub24, crit_sub124]
+        loss_params = [0.16, 0.4, 1.0] # sub4, sub24, sub124
+    else:
+        criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
 
     ## Optimizer
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-    if backbone == 'rfnet':
+    if 'rfnet' in args.arch:
         import re
         enc_params = []
         dec_params = []
@@ -416,7 +483,7 @@ if __name__ == "__main__":
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
-        if backbone == 'rfnet':
+        if 'rfnet' in args.arch:
             optim_enc.load_state_dict(checkpoint['optim_state_dict'])
             optim_dec.load_state_dict(checkpoint['optim_dec_state_dict'])
         else:
@@ -439,9 +506,10 @@ if __name__ == "__main__":
     
     ## the main deal
     trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
-        train_loader=train_loader, val_loader=val_loader, backbone=backbone,
+        train_loader=train_loader, val_loader=val_loader, arch=args.arch,
         output_path=os.path.join(result_path, now), log_path=result_path,
-        max_epoch=60, cuda=(not args.use_cpu), use_amp=args.use_amp)
+        max_epoch=60, cuda=(not args.use_cpu), use_amp=args.use_amp,
+        loss_params=loss_params)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     if args.resume != '':
