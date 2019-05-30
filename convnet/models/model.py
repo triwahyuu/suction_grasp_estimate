@@ -299,9 +299,9 @@ class SuctionRefineNetLW(nn.Module):
         return m
 
 
-class SuctionBiseNet(nn.Module):
+class SuctionBiSeNet(nn.Module):
     def __init__(self, options):
-        super(SuctionBiseNet, self).__init__()
+        super(SuctionBiSeNet, self).__init__()
         self.arch = options.arch
         self.backbone = options.arch.replace('bisenet', 'resnet')
 
@@ -339,6 +339,7 @@ class SuctionBiseNet(nn.Module):
 
 
 ## [TODO]: build ICNet
+## F*** still don't understand it
 class SuctionICNet(nn.Module):
     def __init__(self, options):
         pass
@@ -362,7 +363,7 @@ def build_model(arch, options):
     elif arch in ['pspnet18', 'pspnet34', 'pspnet50', 'pspnet101']:
         model = SuctionPSPNet(options)
     elif arch in ['bisenet18', 'bisenet34', 'bisenet50', 'bisenet101']:
-        model = SuctionBiseNet(options)
+        model = SuctionBiSeNet(options)
     elif arch in ['icnet18', 'icnet34', 'icnet50', 'icnet101']:
         model = SuctionICNet(options)
     else:

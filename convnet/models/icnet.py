@@ -140,14 +140,8 @@ class pyramidPooling(nn.Module):
         self.paths = []
         for i in range(len(pool_sizes)):
             self.paths.append(
-                conv2DBatchNormRelu(
-                    in_channels,
-                    int(in_channels / len(pool_sizes)),
-                    1,
-                    1,
-                    0,
-                    bias=bias,
-                    is_batchnorm=is_batchnorm,
+                conv2DBatchNormRelu(in_channels, int(in_channels / len(pool_sizes)),
+                    1, 1, 0, bias=bias, is_batchnorm=is_batchnorm
                 )
             )
 
@@ -195,27 +189,13 @@ class pyramidPooling(nn.Module):
             return pp_sum
 
 class conv2DBatchNormRelu(nn.Module):
-    def __init__(
-        self,
-        in_channels,
-        n_filters,
-        k_size,
-        stride,
-        padding,
-        bias=True,
-        dilation=1,
-        is_batchnorm=True,
+    def __init__(self, in_channels, n_filters, k_size,
+            stride, padding, bias=True, dilation=1, is_batchnorm=True,
     ):
         super(conv2DBatchNormRelu, self).__init__()
 
-        conv_mod = nn.Conv2d(
-            int(in_channels),
-            int(n_filters),
-            kernel_size=k_size,
-            padding=padding,
-            stride=stride,
-            bias=bias,
-            dilation=dilation,
+        conv_mod = nn.Conv2d(int(in_channels), int(n_filters), kernel_size=k_size,
+            padding=padding, stride=stride, bias=bias, dilation=dilation,
         )
 
         if is_batchnorm:
@@ -232,38 +212,19 @@ class conv2DBatchNormRelu(nn.Module):
 
 class cascadeFeatureFusion(nn.Module):
     def __init__(self, n_classes, low_in_channels, 
-            high_in_channels, out_channels, is_batchnorm=True):
+            high_in_channels, out_channels, is_batchnorm=True
+    ):
         super(cascadeFeatureFusion, self).__init__()
 
         bias = not is_batchnorm
-
-        self.low_dilated_conv_bn = conv2DBatchNorm(
-            low_in_channels,
-            out_channels,
-            3,
-            stride=1,
-            padding=2,
-            bias=bias,
-            dilation=2,
-            is_batchnorm=is_batchnorm,
+        self.low_dilated_conv_bn = conv2DBatchNorm(low_in_channels, out_channels,
+            3, stride=1, padding=2, bias=bias, dilation=2, is_batchnorm=is_batchnorm
         )
-        self.low_classifier_conv = nn.Conv2d(
-            int(low_in_channels),
-            int(n_classes),
-            kernel_size=1,
-            padding=0,
-            stride=1,
-            bias=True,
-            dilation=1,
+        self.low_classifier_conv = nn.Conv2d(int(low_in_channels), int(n_classes), 
+            kernel_size=1, padding=0, stride=1, bias=True, dilation=1
         )  # Train only
-        self.high_proj_conv_bn = conv2DBatchNorm(
-            high_in_channels,
-            out_channels,
-            1,
-            stride=1,
-            padding=0,
-            bias=bias,
-            is_batchnorm=is_batchnorm,
+        self.high_proj_conv_bn = conv2DBatchNorm(high_in_channels, out_channels, 1,
+            stride=1, padding=0, bias=bias, is_batchnorm=is_batchnorm
         )
 
     def forward(self, x_low, x_high):
@@ -304,13 +265,8 @@ class ICNet(nn.Module):
     3) TensorFlow implementation by @hellochick: https://github.com/hellochick/ICNet-tensorflow
     """
 
-    def __init__(
-        self,
-        n_classes=19,
-        block_config=[3, 4, 6, 3],
-        input_size=(1025, 2049),
-        version=None,
-        is_batchnorm=True,
+    def __init__(self, n_classes=19, block_config=[3, 4, 6, 3], 
+        input_size=(1025, 2049), version=None, is_batchnorm=True,
     ):
 
         super(ICNet, self).__init__()
@@ -360,42 +316,22 @@ class ICNet(nn.Module):
 
         # Final conv layer with kernel 1 in sub4 branch
         self.conv5_4_k1 = conv2DBatchNormRelu(
-            in_channels=1024,
-            k_size=1,
-            n_filters=256,
-            padding=0,
-            stride=1,
-            bias=bias,
-            is_batchnorm=is_batchnorm,
+            in_channels=1024, k_size=1, n_filters=256, padding=0,
+            stride=1, bias=bias, is_batchnorm=is_batchnorm,
         )
 
         # High-resolution (sub1) branch
         self.convbnrelu1_sub1 = conv2DBatchNormRelu(
-            in_channels=3,
-            k_size=3,
-            n_filters=32,
-            padding=1,
-            stride=2,
-            bias=bias,
-            is_batchnorm=is_batchnorm,
+            in_channels=3, k_size=3, n_filters=32, padding=1,
+            stride=2, bias=bias, is_batchnorm=is_batchnorm
         )
         self.convbnrelu2_sub1 = conv2DBatchNormRelu(
-            in_channels=32,
-            k_size=3,
-            n_filters=32,
-            padding=1,
-            stride=2,
-            bias=bias,
-            is_batchnorm=is_batchnorm,
+            in_channels=32, k_size=3, n_filters=32, padding=1,
+            stride=2, bias=bias, is_batchnorm=is_batchnorm
         )
         self.convbnrelu3_sub1 = conv2DBatchNormRelu(
-            in_channels=32,
-            k_size=3,
-            n_filters=64,
-            padding=1,
-            stride=2,
-            bias=bias,
-            is_batchnorm=is_batchnorm,
+            in_channels=32, k_size=3, n_filters=64, padding=1,
+            stride=2, bias=bias, is_batchnorm=is_batchnorm
         )
         self.classification = nn.Conv2d(128, self.n_classes, 1, 1, 0)
 
@@ -412,7 +348,8 @@ class ICNet(nn.Module):
 
         # H, W -> H/2, W/2
         x_sub2 = F.interpolate(
-            x, size=get_interp_size(x, s_factor=2), mode="bilinear", align_corners=True
+            x, size=get_interp_size(x, s_factor=2), 
+            mode="bilinear", align_corners=True
         )
 
         # H/2, W/2 -> H/4, W/4
@@ -428,7 +365,8 @@ class ICNet(nn.Module):
         x_sub2 = self.res_block3_conv(x_sub2)
         # H/16, W/16 -> H/32, W/32
         x_sub4 = F.interpolate(
-            x_sub2, size=get_interp_size(x_sub2, s_factor=2), mode="bilinear", align_corners=True
+            x_sub2, size=get_interp_size(x_sub2, s_factor=2), 
+            mode="bilinear", align_corners=True
         )
         x_sub4 = self.res_block3_identity(x_sub4)
 
@@ -446,7 +384,8 @@ class ICNet(nn.Module):
         x_sub12, sub24_cls = self.cff_sub12(x_sub24, x_sub1)
 
         x_sub12 = F.interpolate(
-            x_sub12, size=get_interp_size(x_sub12, z_factor=2), mode="bilinear", align_corners=True
+            x_sub12, size=get_interp_size(x_sub12, z_factor=2), 
+            mode="bilinear", align_corners=True
         )
         x_sub4 = self.res_block3_identity(x_sub4)
         sub124_cls = self.classification(x_sub12)
