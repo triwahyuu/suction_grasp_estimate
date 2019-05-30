@@ -153,10 +153,9 @@ class Trainer(object):
         torch.manual_seed(1234)
 
     def validate(self):
-        self.model.eval()
         n_class = self.train_loader.dataset.n_class
 
-        os.system('play -nq -t alsa synth {} sine {}'.format(0.3, 440)) # sound an alarm
+        # os.system('play -nq -t alsa synth {} sine {}'.format(0.3, 440)) # sound an alarm
 
         val_loss = 0
         label_trues, label_preds = [], []
@@ -167,16 +166,19 @@ class Trainer(object):
                 
             ## validate
             with torch.no_grad():
+                self.model.eval()
                 if self.cuda:
-                    input_img[0], input_img[1], target = input_img[0].cuda(), input_img[1].cuda(), target.cuda()
+                    input_img[0], input_img[1] = input_img[0].cuda(), input_img[1].cuda()
+                    target = target.cuda()
 
                 output = self.model(input_img)
                 output = nn.functional.interpolate(output, size=target.size()[1:],
                     mode='bilinear', align_corners=False)
-
+                
                 loss = self.criterion(output, target)
                 loss_data = loss.data.item()
                 if np.isnan(loss_data):
+                    print('\n\n', loss)
                     raise ValueError('loss is nan while validating')
                 val_loss += loss_data / len(input_img[0])
 
@@ -299,6 +301,9 @@ class Trainer(object):
                 loss_p = self.criterion(output, target)
                 loss_a1 = self.crit_aux1(out_sup1, target)
                 loss_a2 = self.crit_aux2(out_sup2, target)
+                # loss_p = self.criterion(output, target)
+                # loss_a1 = self.crit_aux1(out_sup1, target)
+                # loss_a2 = self.crit_aux2(out_sup2, target)
                 loss = loss_p + self.alphas[0] * loss_a1 + self.alphas[1] * loss_a2
             elif 'icnet' in self.arch:
                 loss_sub124 = self.criterion(output, target)
@@ -385,8 +390,8 @@ if __name__ == "__main__":
         '--resume', default='', type=str, help='checkpoint path'
     )
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='resnet101', choices=model_choices,
-        help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
+        '-a', '--arch', metavar='arch', default='bisenet18', choices=model_choices,
+        help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet101)'
     )
     parser.add_argument(
         '--lr', type=float, default=1.0e-3, help='learning rate',
@@ -399,6 +404,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         '--output-path', dest='result_path', default='', help='training result path',
+    )
+    parser.add_argument(
+        '--max-epoch', default=60, type=int, help='maximum epoch for training',
     )
     parser.add_argument(
         '--use-cpu', dest='use_cpu', action='store_true', help='use cpu on training',
@@ -426,19 +434,16 @@ if __name__ == "__main__":
     model.apply(BNtoFixed)
     model.to(device)
 
-    ## [TODO]
-    """
-    bisenet -> training loss needs 3 CrossEntropyLoss for each training output
-    icnet -> training loss needs 3 CrossEntropyLoss with mean reduced for each training output 
-        + reduced loss with lambda multiplier on each loss before
-    """
-    
+
     ## Loss
     loss_params = None
     if 'bisenet' in args.arch:
-        crit_principal = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
-        crit_aux1 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
-        crit_aux2 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        # crit_principal = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        # crit_aux1 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        # crit_aux2 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
+        crit_principal = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
+        crit_aux1 = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
+        crit_aux2 = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
         criterion = [crit_principal, crit_aux1, crit_aux2]
         loss_params = [1, 1]    # aux1, aux2
     elif 'icnet' in args.arch:
@@ -496,19 +501,21 @@ if __name__ == "__main__":
     train_dataset = SuctionDatasetNew(options, mode='train')
     train_loader = DataLoader(train_dataset, batch_size=options.batch_size,
         shuffle=options.shuffle, num_workers=3)
+    # train_loader = DataLoader(train_dataset, batch_size=1, shuffle=options.shuffle)
 
     val_dataset = SuctionDatasetNew(options, 
         sample_list=os.path.join(options.data_path, 'test-split.txt'),
         mode='val')
-    val_loader = DataLoader(val_dataset, batch_size=options.batch_size,\
+    val_loader = DataLoader(val_dataset, batch_size=options.batch_size,
         shuffle=False, num_workers=3)
+    # val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
     
     ## the main deal
     trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
         train_loader=train_loader, val_loader=val_loader, arch=args.arch,
         output_path=os.path.join(result_path, now), log_path=result_path,
-        max_epoch=60, cuda=(not args.use_cpu), use_amp=args.use_amp,
+        max_epoch=args.max_epoch, cuda=(not args.use_cpu), use_amp=args.use_amp,
         loss_params=loss_params)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
@@ -516,3 +523,4 @@ if __name__ == "__main__":
         trainer.best_mean_iu = checkpoint['best_mean_iu']
         trainer.best_loss = checkpoint['best_loss']
     trainer.train()
+    # trainer.validate()

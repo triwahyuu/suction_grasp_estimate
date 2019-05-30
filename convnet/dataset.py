@@ -18,12 +18,13 @@ class Struct:
             setattr(self, k, v)
 
 class SuctionDatasetNew(Dataset):
-    def __init__(self, options, data_path=None, sample_list=None, mode='train'):
+    def __init__(self, options, data_path=None, sample_list=None, mode='train', encode_label=False):
         self.path = data_path if data_path != None else options.data_path
         self.output_scale = options.output_scale
         self.img_height = options.img_height
         self.img_width = options.img_width
         self.mode = mode
+        self.encode_label = encode_label
         
         ## data samples
         sample_path = sample_list if sample_list != None else options.sample_path
@@ -82,10 +83,17 @@ class SuctionDatasetNew(Dataset):
             label = (np.asarray(label, dtype=np.float32) * 2 / 255).astype(np.uint8)
             label_segmap = ia.SegmentationMapOnImage(label, shape=color_img.shape, nb_classes=3)
             label_segmap = seq_det.augment_segmentation_maps([label_segmap])[0]
-            label_img = Image.fromarray((label_segmap.get_arr_int() * 255/2).astype(np.uint8))
-            label_img = self.to_tensor(self.resize_label(label_img.copy()))
+            if self.encode_label:
+                label_arr = torch.nn.functional.one_hot(label_segmap.get_arr_int())
+                label_arr = (label_arr*255).astype(np.uint8)
+            else:
+                label_arr = (label_segmap.get_arr_int() * 255/2).astype(np.uint8)
+            label_img = Image.fromarray(label_arr)
+            # label_img = self.to_tensor(self.resize_label(label_img.copy()))
+            label_img = self.to_tensor(label_img.copy())
             label_img = torch.round(label_img*2).long()
-            label_img = label_img.view(self.img_height//self.output_scale, -1)
+            # label_img = label_img.view(self.img_height//self.output_scale, -1)
+            label_img = label_img.view(self.img_height, -1)
 
         elif self.mode == 'val':
             color_img = self.normalize(self.to_tensor(color))
@@ -95,9 +103,15 @@ class SuctionDatasetNew(Dataset):
             depth_img = torch.cat([depth_img, depth_img, depth_img], 0)
             depth_img = self.normalize(depth_img)
 
-            label_img = self.to_tensor(self.resize_label(label))
+            # label_img = self.to_tensor(self.resize_label(label))
+            if self.encode_label:
+                label = (np.asarray(label, dtype=np.float32) * 2 / 255).astype(np.uint8)
+                label = torch.nn.functional.one_hot(label)
+                label = Image.fromarray((label*255).astype(np.uint8))
+            label_img = self.to_tensor(label)
             label_img = torch.round(label_img*2).long() # set to segmentation map value
-            label_img = label_img.view(self.img_height//self.output_scale, -1)
+            # label_img = label_img.view(self.img_height//self.output_scale, -1)
+            label_img = label_img.view(self.img_height, -1)
         return [color_img, depth_img], label_img
 
     def __len__(self):
