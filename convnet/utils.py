@@ -63,5 +63,11 @@ def label_accuracy_score(label_trues, label_preds, n_class):
     return acc, acc_cls, mean_iu, fwavacc
 
 
+def compute_precision(pred, label):
+    pred = pred.flatten()
+    label = label.flatten()
+    count = np.sum([1 for i in range(len(label)) if pred[i] == label[i]])
+    return float(count) / len(label)
+
 if __name__ == '__main__':
     pass

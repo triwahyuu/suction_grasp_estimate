@@ -22,7 +22,7 @@ from tensorboardX import SummaryWriter
 
 from dataset import SuctionDatasetNew
 from models.model import build_model
-from utils import label_accuracy_score
+from utils import label_accuracy_score, compute_precision
 
 import pytz
 import math
@@ -148,7 +148,7 @@ class Trainer(object):
         self.max_iter = max_iter
         self.max_epoch = max_epoch
         self.best_mean_iu = 0
-        self.best_loss = 999.999
+        self.best_prec = 0
         self.writer = SummaryWriter(log_dir=os.path.join(log_path, 'tb'))
         torch.manual_seed(1234)
 
@@ -158,6 +158,7 @@ class Trainer(object):
         # os.system('play -nq -t alsa synth {} sine {}'.format(0.3, 440)) # sound an alarm
 
         val_loss = 0
+        prec = 0
         label_trues, label_preds = [], []
         for batch_idx, (input_img, target) in tqdm.tqdm(
                 enumerate(self.val_loader), total=len(self.val_loader),
@@ -172,44 +173,55 @@ class Trainer(object):
                     target = target.cuda()
 
                 output = self.model(input_img)
-                output = nn.functional.interpolate(output, size=target.size()[1:],
-                    mode='bilinear', align_corners=False)
+                if self.val_loader.dataset.encode_label:
+                    output = nn.functional.interpolate(output, size=target.size()[2:],
+                        mode='bilinear', align_corners=False)
+                else:
+                    output = nn.functional.interpolate(output, size=target.size()[1:],
+                        mode='bilinear', align_corners=False)
                 
-                loss = self.criterion(output, target)
-                loss_data = loss.data.item()
-                if np.isnan(loss_data):
-                    print('\n\n', loss)
-                    raise ValueError('loss is nan while validating')
-                val_loss += loss_data / len(input_img[0])
+                if 'bisenet' not in self.arch:
+                    loss = self.criterion(output, target)
+                    loss_data = loss.data.item()
+                    if np.isnan(loss_data):
+                        raise ValueError('loss is nan while validating')
+                    val_loss += loss_data / len(input_img[0])
 
             ## some stats
-            lbl_pred = output.data.max(1)[1].cpu().numpy()[:, :, :]
-            lbl_true = target.data.cpu()
+            lbl_pred = output.data.max(1)[1].cpu().numpy().squeeze()
+            lbl_true = target.data.cpu().numpy().squeeze()
+            prec += compute_precision(lbl_pred, lbl_true)
             for lt, lp in zip(lbl_true, lbl_pred):
-                label_trues.append(lt.numpy())
+                label_trues.append(lt)
                 label_preds.append(lp)
 
         metrics = label_accuracy_score(label_trues, label_preds, n_class)
-        val_loss /= len(self.val_loader)
+        val_prec = prec/len(self.val_loader)
 
         with open(osp.join(self.output_path, 'log.csv'), 'a') as f:
-            val_loss_str = '%.10f' %(val_loss)
+            
             metrics_str = ['%.10f' %(a) for a in list(metrics)]
             elapsed_time = (
                 datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
                 self.timestamp_start).total_seconds()
-            log = [self.epoch, self.iteration] + [''] * 5 + \
-                  [val_loss_str] + metrics_str + [elapsed_time]
+            if 'bisenet' not in self.arch:
+                val_loss /= len(self.val_loader)
+                log = [self.epoch, self.iteration] + [''] * 5 + \
+                    ['%.10f' %(val_loss)] + ['%.10f' %(val_prec)] + \
+                    metrics_str + [elapsed_time]
+            else:
+                log = [self.epoch, self.iteration] + [''] * 5 + \
+                    ['%.10f' %(val_prec)] + metrics_str + [elapsed_time]
             log = map(str, log)
             f.write(','.join(log) + '\n')
 
         mean_iu = metrics[2]
         is_best = mean_iu > self.best_mean_iu
-        is_loss_best = val_loss < self.best_loss
         if is_best:
             self.best_mean_iu = mean_iu
-        if is_loss_best:
-            self.best_loss = val_loss
+        is_prec_best = val_prec > self.best_prec
+        if is_prec_best:
+            self.best_prec = val_prec
         torch.save({
             'epoch': self.epoch,
             'iteration': self.iteration,
@@ -217,7 +229,7 @@ class Trainer(object):
             'optim_state_dict': self.optim.state_dict(),
             'model_state_dict': self.model.state_dict(),
             'best_mean_iu': self.best_mean_iu,
-            'best_loss': self.best_loss,
+            'best_prec': self.best_prec,
         }, osp.join(self.output_path, 'checkpoint.pth.tar'))
         if self.arch == 'rfnet':
             torch.save({
@@ -228,17 +240,19 @@ class Trainer(object):
             'optim_dec_state_dict': self.optim_dec.state_dict(),
             'model_state_dict': self.model.state_dict(),
             'best_mean_iu': self.best_mean_iu,
-            'best_loss': self.best_loss,
+            'best_prec': self.best_prec,
         }, osp.join(self.output_path, 'checkpoint.pth.tar'))
 
         if is_best:
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
                         osp.join(self.output_path, 'model_best.pth.tar'))
-        if is_loss_best:
+        if is_prec_best:
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
-                        osp.join(self.output_path, 'model_loss_best.pth.tar'))
+                        osp.join(self.output_path, 'model_prec_best.pth.tar'))
         
-        self.writer.add_scalar('val/loss', val_loss, self.epoch)
+        if 'bisenet' not in self.arch:
+            self.writer.add_scalar('val/loss', val_loss, self.epoch)
+        self.writer.add_scalar('val/precision', val_prec, self.epoch)
         self.writer.add_scalar('val/accuracy', metrics[0], self.epoch)
         self.writer.add_scalar('val/acc_class', metrics[1], self.epoch)
         self.writer.add_scalar('val/mean_iu', metrics[2], self.epoch)
@@ -291,9 +305,15 @@ class Trainer(object):
                     output[0], size=target.size()[1:], mode='bilinear', align_corners=False
                 )
             else:
-                output = nn.functional.interpolate(
-                    output, size=target.size()[1:], mode='bilinear', align_corners=False
-                )
+                if self.train_loader.dataset.encode_label:
+                    output = nn.functional.interpolate(
+                        output, size=target.size()[2:], mode='bilinear', align_corners=False
+                    )
+                    target = target.float()
+                else:
+                    output = nn.functional.interpolate(
+                        output, size=target.size()[1:], mode='bilinear', align_corners=False
+                    )
 
             ## compute loss and backpropagate
             loss = None
@@ -301,9 +321,6 @@ class Trainer(object):
                 loss_p = self.criterion(output, target)
                 loss_a1 = self.crit_aux1(out_sup1, target)
                 loss_a2 = self.crit_aux2(out_sup2, target)
-                # loss_p = self.criterion(output, target)
-                # loss_a1 = self.crit_aux1(out_sup1, target)
-                # loss_a2 = self.crit_aux2(out_sup2, target)
                 loss = loss_p + self.alphas[0] * loss_a1 + self.alphas[1] * loss_a2
             elif 'icnet' in self.arch:
                 loss_sub124 = self.criterion(output, target)
@@ -409,6 +426,12 @@ if __name__ == "__main__":
         '--max-epoch', default=60, type=int, help='maximum epoch for training',
     )
     parser.add_argument(
+        '--num-workers', default=0, type=int, help='num workers of training loader',
+    )
+    parser.add_argument(
+        '--batch-size', default=2, type=int, help='batch size for training',
+    )
+    parser.add_argument(
         '--use-cpu', dest='use_cpu', action='store_true', help='use cpu on training',
     )
     parser.add_argument(
@@ -438,12 +461,12 @@ if __name__ == "__main__":
     ## Loss
     loss_params = None
     if 'bisenet' in args.arch:
-        # crit_principal = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
-        # crit_aux1 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
-        # crit_aux2 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
-        crit_principal = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
-        crit_aux1 = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
-        crit_aux2 = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
+        crit_principal = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
+        crit_aux1 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
+        crit_aux2 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
+        # crit_principal = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
+        # crit_aux1 = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
+        # crit_aux2 = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
         criterion = [crit_principal, crit_aux1, crit_aux2]
         loss_params = [1, 1]    # aux1, aux2
     elif 'icnet' in args.arch:
@@ -498,17 +521,23 @@ if __name__ == "__main__":
     ## dataset
     # if args.arch == 'resnet18' or args.arch == 'pspnet18':
     #     options.batch_size = 4
+    # if 'bisenet' in args.arch:
+    #     train_dataset = SuctionDatasetNew(options, mode='train', encode_label= True)
+    #     val_dataset = SuctionDatasetNew(options, mode='val', encode_label=True,
+    #         sample_list=os.path.join(options.data_path, 'test-split.txt')
+    #     )
+    # else:
+    #     train_dataset = SuctionDatasetNew(options, mode='train')
+    #     val_dataset = SuctionDatasetNew(options, mode='val', 
+    #         sample_list=os.path.join(options.data_path, 'test-split.txt')
+    #     )
     train_dataset = SuctionDatasetNew(options, mode='train')
-    train_loader = DataLoader(train_dataset, batch_size=options.batch_size,
-        shuffle=options.shuffle, num_workers=3)
-    # train_loader = DataLoader(train_dataset, batch_size=1, shuffle=options.shuffle)
-
-    val_dataset = SuctionDatasetNew(options, 
-        sample_list=os.path.join(options.data_path, 'test-split.txt'),
-        mode='val')
+    val_dataset = SuctionDatasetNew(options, mode='val', 
+        sample_list=os.path.join(options.data_path, 'test-split.txt'))
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
+        shuffle=options.shuffle, num_workers=args.num_workers)
     val_loader = DataLoader(val_dataset, batch_size=options.batch_size,
-        shuffle=False, num_workers=3)
-    # val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+        shuffle=False, num_workers=4, pin_memory=True)
 
     
     ## the main deal
@@ -521,6 +550,5 @@ if __name__ == "__main__":
     trainer.iteration = start_iteration
     if args.resume != '':
         trainer.best_mean_iu = checkpoint['best_mean_iu']
-        trainer.best_loss = checkpoint['best_loss']
+        trainer.best_prec = checkpoint['best_prec']
     trainer.train()
-    # trainer.validate()
