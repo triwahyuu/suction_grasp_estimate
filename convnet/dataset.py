@@ -29,12 +29,7 @@ class SuctionDatasetNew(Dataset):
         ## data samples
         sample_path = sample_list if sample_list != None else options.sample_path
         self.sample_list = open(sample_path).read().splitlines()
-        self.num_samples = len(self.sample_list)
         self.n_class = 3
-        
-        self.train_idx = 1
-        self.train_epoch_idx = 1
-        self.train_epoch_size = self.num_samples
 
         ia.seed(int(time.time()))
         self.aug_seq = iaa.OneOf([
@@ -59,8 +54,8 @@ class SuctionDatasetNew(Dataset):
         # transforms
         self.to_tensor = transforms.ToTensor()
         self.normalize = transforms.Normalize((0.485,0.456,0.406), (0.229,0.224,0.225))
-        self.resize_label = transforms.Resize((self.img_height//self.output_scale,
-            self.img_width//self.output_scale))
+        # self.resize_label = transforms.Resize((self.img_height//self.output_scale,
+        #     self.img_width//self.output_scale))
 
     def __getitem__(self, index):
         seq_det = self.aug_seq.to_deterministic()
@@ -71,51 +66,40 @@ class SuctionDatasetNew(Dataset):
         
         if self.mode == 'train':
             color_img = np.asarray(color, dtype=np.float32) / 255
-            color_img = np.clip(seq_det.augment_image(color_img), 0.0, 1.0)
+            color_img = seq_det.augment_image(color_img).clip(0.0, 1.0)
             color_img = self.normalize(self.to_tensor(color_img.copy()))
 
-            depth_img = (np.asarray(depth, dtype=np.float64) * 65536/10000).astype(np.float32)
-            depth_img = np.array([depth_img, depth_img, depth_img])
-            depth_img = np.transpose(depth_img, (1, 2, 0))
-            depth_img = seq_det.augment_image(depth_img)
-            depth_img = self.normalize(self.to_tensor(depth_img.copy()).clamp(0.0, 1.2))
+            depth_img = (np.asarray(depth, dtype=np.float64) / 8000).astype(np.float32)
+            depth_img = np.stack([depth_img, depth_img, depth_img], axis=2)
+            depth_img = seq_det.augment_image(depth_img).clip(0.0, 1.5)
+            depth_img = self.normalize(self.to_tensor(depth_img.copy()))
             
             label = (np.asarray(label, dtype=np.float32) * 2 / 255).astype(np.uint8)
             label_segmap = ia.SegmentationMapOnImage(label, shape=color_img.shape, nb_classes=3)
             label_segmap = seq_det.augment_segmentation_maps([label_segmap])[0]
-            if self.encode_label:
-                label_arr = torch.nn.functional.one_hot(label_segmap.get_arr_int())
-                label_arr = (label_arr*255).astype(np.uint8)
-            else:
-                label_arr = (label_segmap.get_arr_int() * 255/2).astype(np.uint8)
-            label_img = Image.fromarray(label_arr)
-            # label_img = self.to_tensor(self.resize_label(label_img.copy()))
+            label_img = Image.fromarray((label_segmap.get_arr_int() * 255/2).astype(np.uint8))
             label_img = self.to_tensor(label_img.copy())
-            label_img = torch.round(label_img*2).long()
-            # label_img = label_img.view(self.img_height//self.output_scale, -1)
-            label_img = label_img.view(self.img_height, -1)
-
+            
         elif self.mode == 'val':
             color_img = self.normalize(self.to_tensor(color))
             
-            depth_img = np.asarray(depth, dtype=np.float32)
-            depth_img = (self.to_tensor(depth_img) * 65536/10000).clamp(0.0, 1.2)
-            depth_img = torch.cat([depth_img, depth_img, depth_img], 0)
+            depth_img = (np.asarray(depth, dtype=np.float64) / 8000).astype(np.float32).clip(0.0, 1.5)
+            depth_img = np.stack([depth_img, depth_img, depth_img], axis=2)
+            depth_img = self.to_tensor(depth_img)
             depth_img = self.normalize(depth_img)
 
-            # label_img = self.to_tensor(self.resize_label(label))
-            if self.encode_label:
-                label = (np.asarray(label, dtype=np.float32) * 2 / 255).astype(np.uint8)
-                label = torch.nn.functional.one_hot(label)
-                label = Image.fromarray((label*255).astype(np.uint8))
             label_img = self.to_tensor(label)
-            label_img = torch.round(label_img*2).long() # set to segmentation map value
-            # label_img = label_img.view(self.img_height//self.output_scale, -1)
+
+        label_img = torch.round(label_img*2).long()
+        if self.encode_label:
+            label_img = torch.nn.functional.one_hot(label_img)
+            label_img = label_img.permute(0,3,1,2).squeeze()
+        else:
             label_img = label_img.view(self.img_height, -1)
         return [color_img, depth_img], label_img
 
     def __len__(self):
-        return self.num_samples
+        return len(self.sample_list)
 
 
 class SuctionDataset(Dataset):
@@ -165,21 +149,22 @@ class SuctionDataset(Dataset):
 if __name__ == "__main__":
     class Options:
         def __init__(self):
-            data_path = '/home/tri/skripsi/dataset/'
-            sample_path = '/home/tri/skripsi/dataset/test-split.txt'
-            img_height =  480
-            img_width = 640
-            batch_size = 4
-            n_class = 3
-            output_scale = 8
-            shuffle = True
-            learning_rate = 0.001
+            p = os.path.dirname(os.path.abspath(__file__)).split('/')[:-1]
+            self.proj_path = '/'.join(p)
+            self.data_path = os.path.join('/'.join(p[:-1]), 'dataset/')
+            self.sample_path = os.path.join(self.data_path, 'test-split.txt')
+            self.img_height =  480
+            self.img_width = 640
+            self.batch_size = 4
+            self.n_class = 3
+            self.output_scale = 8
+            self.shuffle = True
+            self.learning_rate = 0.001
 
     options = Options()
-    data_path = '/home/tri/skripsi/dataset/'
-    sample_path = '/home/tri/skripsi/dataset/test-split.txt'
 
     # testing functionality
-    suction_dataset = SuctionDataset(options, data_path=data_path, sample_list=sample_path)
-    rgbd, label = suction_dataset[1]
+    suction_dataset = SuctionDatasetNew(options, data_path=options.data_path, 
+        sample_list=options.sample_path, mode='train')
+    rgbd, label = suction_dataset[100]
     a, b = suction_dataset[2]
