@@ -1,9 +1,14 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
-*/*.txt
-*/test.py
+**/*.txt
+**/test.py
 
+# c++ stuff
+!cpp/*.txt
+**/*.pt
+**/build/
+
+# some config stuff
 result*/
-
 .vscode/
