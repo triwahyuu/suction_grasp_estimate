@@ -34,10 +34,14 @@ if __name__ == "__main__":
     parser.add_argument(
         '--checkpoint', required=True, help='model path',
     )
+    parser.add_argument(
+        '--output-path', default="", help='model path',
+    )
     args = parser.parse_args()
     options = Options()
-    ckpt_path = p = osp.dirname(args.checkpoint)
+    rslt_path = osp.join(options.proj_path, "result") if args.output_path == "" else args.output_path
     
+    print("loading model...")
     model = None
     backbone = 'resnet'
     if args.arch == 'resnet18' or args.arch == 'resnet34':
@@ -54,9 +58,11 @@ if __name__ == "__main__":
     model.load_state_dict(checkpoint['model_state_dict'])
 
     # random input
+    print("tracing model...")
     inp = torch.rand(1, 3, options.img_height, options.img_width)
     example = [inp, inp]
 
     # generate a torch.jit.ScriptModule via tracing.
-    traced_script_module = torch.jit.trace(model, example)
-    traced_script_module.save("model.pt")
+    traced_script_module = torch.jit.trace(model, (inp, inp))
+    traced_script_module.save(osp.join(rslt_path, "model_converted.pt"))
+    print("tracing done, model saved...")

@@ -114,15 +114,16 @@ class SuctionModel18(nn.Module):
         self.feature = nn.Sequential(
             nn.Dropout(0.25),
             nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
+            # nn.Threshold(0, 1e-6),
             nn.Dropout(0.4),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
             Interpolate(scale=2, mode='bilinear')
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
-    def forward(self, rgbd_input):
-        rgb_feature = self.rgb_trunk(rgbd_input[0])
-        depth_feature = self.depth_trunk(rgbd_input[1])
+    def forward(self, rgb_input, ddd_input):
+        rgb_feature = self.rgb_trunk(rgb_input)
+        depth_feature = self.depth_trunk(ddd_input)
 
         # concatenate rgb and depth input
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
@@ -160,9 +161,9 @@ class SuctionModel50(nn.Module):
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
-    def forward(self, rgbd_input):
-        rgb_feature = self.rgb_trunk(rgbd_input[0])
-        depth_feature = self.depth_trunk(rgbd_input[1])
+    def forward(self, rgb_input, ddd_input):
+        rgb_feature = self.rgb_trunk(rgb_input)
+        depth_feature = self.depth_trunk(ddd_input)
 
         # concatenate rgb and depth input
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
@@ -194,9 +195,9 @@ class SuctionPSPNet(nn.Module):
         self.segment = PSPNet(n_classes=options.n_class, psp_size=self.psp_size)
         updatePadding(self.segment, nn.ReflectionPad2d)
 
-    def forward(self, rgbd_input):
-        rgb_feature = self.rgb_trunk(rgbd_input[0])
-        depth_feature = self.depth_trunk(rgbd_input[1])
+    def forward(self, rgb_input, ddd_input):
+        rgb_feature = self.rgb_trunk(rgb_input)
+        depth_feature = self.depth_trunk(ddd_input)
 
         # concatenate rgb and depth input
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
@@ -241,9 +242,9 @@ class SuctionRefineNet(nn.Module):
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
-    def forward(self, rgbd_input):
-        rgb_feature = self.rgb_trunk(rgbd_input[0])
-        depth_feature = self.depth_trunk(rgbd_input[1])
+    def forward(self, rgb_input, ddd_input):
+        rgb_feature = self.rgb_trunk(rgb_input)
+        depth_feature = self.depth_trunk(ddd_input)
 
         # concatenate rgb and depth input
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
@@ -279,9 +280,9 @@ class SuctionRefineNetLW(nn.Module):
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
-    def forward(self, rgbd_input):
-        rgb_feature = self.rgb_trunk(rgbd_input[0])
-        depth_feature = self.depth_trunk(rgbd_input[1])
+    def forward(self, rgb_input, ddd_input):
+        rgb_feature = self.rgb_trunk(rgb_input)
+        depth_feature = self.depth_trunk(ddd_input)
 
         ## concatenate rgb and depth input
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
@@ -315,14 +316,14 @@ class SuctionBiSeNet(nn.Module):
         self.segment = BiSeNet(options.n_class, self.backbone)
         updatePadding(self.segment, nn.ReflectionPad2d)
     
-    def forward(self, rgbd_input):
+    def forward(self, rgb_input, ddd_input):
         ## context path
-        rgb_cx1, rgb_cx2, rgb_tail = self.rgb_trunk(rgbd_input[0])
-        depth_cx1, depth_cx2, depth_tail = self.depth_trunk(rgbd_input[1])
+        rgb_cx1, rgb_cx2, rgb_tail = self.rgb_trunk(rgb_input)
+        depth_cx1, depth_cx2, depth_tail = self.depth_trunk(ddd_input)
 
         ## spatial path
-        rgb_sx = self.rgb_spatial(rgbd_input[0])
-        depth_sx = self.depth_spatial(rgbd_input[1])
+        rgb_sx = self.rgb_spatial(rgb_input)
+        depth_sx = self.depth_spatial(ddd_input)
 
         ## concatenate rgb and depth
         rgbd_cx1 = torch.cat((rgb_cx1, depth_cx1), 1)

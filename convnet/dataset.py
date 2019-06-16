@@ -96,7 +96,7 @@ class SuctionDatasetNew(Dataset):
             label_img = label_img.permute(0,3,1,2).squeeze()
         else:
             label_img = label_img.view(self.img_height, -1)
-        return [color_img, depth_img], label_img
+        return color_img, depth_img, label_img
 
     def __len__(self):
         return len(self.sample_list)
