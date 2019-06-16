@@ -303,6 +303,7 @@ class SuctionBiSeNet(nn.Module):
     def __init__(self, options):
         super(SuctionBiSeNet, self).__init__()
         self.arch = options.arch
+        # self.validating = False
         self.backbone = options.arch.replace('bisenet', 'resnet')
 
         self.rgb_trunk = self._create_trunk()

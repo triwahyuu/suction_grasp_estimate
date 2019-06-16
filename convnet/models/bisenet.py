@@ -123,19 +123,19 @@ class FeatureFusionModule(nn.Module):
         x = torch.add(x, feature)
         return x
 
-class BiSeNet(torch.nn.Module):
+class BiSeNet(nn.Module):
     def __init__(self, num_classes, context_path):
-        super().__init__()
+        super(BiSeNet, self).__init__()
 
         # build attention refinement module  for resnet 101
         if context_path in ['resnet101', 'resnet50']:
-            self.attention_refinement_module1 = AttentionRefinementModule(1024, 1024)
-            self.attention_refinement_module2 = AttentionRefinementModule(2048, 2048)
+            self.attention_refinement_module1 = AttentionRefinementModule(2048, 2048)
+            self.attention_refinement_module2 = AttentionRefinementModule(4096, 4096)
             # supervision block
-            self.supervision1 = nn.Conv2d(in_channels=1024, out_channels=num_classes, kernel_size=1)
-            self.supervision2 = nn.Conv2d(in_channels=2048, out_channels=num_classes, kernel_size=1)
+            self.supervision1 = nn.Conv2d(in_channels=2048, out_channels=num_classes, kernel_size=1)
+            self.supervision2 = nn.Conv2d(in_channels=4096, out_channels=num_classes, kernel_size=1)
             # build feature fusion module
-            self.feature_fusion_module = FeatureFusionModule(num_classes, 3328)
+            self.feature_fusion_module = FeatureFusionModule(num_classes, 6656)
 
         elif context_path in ['resnet18', 'resnet34']:
             ## build attention refinement module  for resnet 18
@@ -145,13 +145,13 @@ class BiSeNet(torch.nn.Module):
             self.supervision1 = nn.Conv2d(in_channels=512, out_channels=num_classes, kernel_size=1)
             self.supervision2 = nn.Conv2d(in_channels=1024, out_channels=num_classes, kernel_size=1)
             ## build feature fusion module
-            self.feature_fusion_module = FeatureFusionModule(num_classes, 1024)
+            self.feature_fusion_module = FeatureFusionModule(num_classes, 2048)
         else:
             raise Exception('Error: context_path %s is unsupported' % (context_path))
 
         # build final convolution
         self.conv = nn.Conv2d(in_channels=num_classes, out_channels=num_classes, kernel_size=1)
-
+        # self.sigmoid = nn.Sigmoid()
 
     def forward(self, sx, cx1, cx2, tail):
         ## sx -> spatial_path output
@@ -179,7 +179,6 @@ class BiSeNet(torch.nn.Module):
         result = torch.nn.functional.interpolate(result, scale_factor=8, mode='bilinear')
         result = self.conv(result)
 
-        if self.training == True:
+        if self.training:
             return result, cx1_sup, cx2_sup
-        
         return result
