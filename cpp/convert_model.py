@@ -1,11 +1,11 @@
 ## Converting PyTorch model to TorchScript model for C++ Inference
+import sys
+import os.path as osp
+sys.path.append(osp.join('/'.join(osp.dirname(osp.abspath(__file__)).split('/')[:-1]), 'convnet'))
 
 import argparse
-import os.path as osp
 import torch
-from models.model import SuctionModel18, SuctionModel50
-from models.model import SuctionRefineNet, SuctionRefineNetLW
-from models.model import SuctionPSPNet
+from models.model import build_model
 
 class Options:
     def __init__(self):
@@ -17,8 +17,6 @@ class Options:
         self.img_width = 640
         self.n_class = 3
         self.output_scale = 8
-        # available architecture: 
-        # [resnet18, resnet34, resnet50, resnet101, rfnet50, rfnet101, pspnet18, pspnet101]
         self.arch = 'resnet18'
 
 
@@ -42,20 +40,19 @@ if __name__ == "__main__":
     rslt_path = osp.join(options.proj_path, "result") if args.output_path == "" else args.output_path
     
     print("loading model...")
-    model = None
-    backbone = 'resnet'
-    if args.arch == 'resnet18' or args.arch == 'resnet34':
-        model = SuctionModel18(options)
-    elif args.arch == 'resnet50' or args.arch == 'resnet101' or args.arch == 'resnet152':
-        model = SuctionModel50(options)
-    elif args.arch == 'rfnet50' or args.arch == 'rfnet101' or args.arch == 'rfnet152':
-        backbone = 'rfnet'
-        model = SuctionRefineNetLW(options)
-    elif args.arch == 'pspnet50' or args.arch == 'pspnet101' \
-            or args.arch == 'pspnet18' or args.arch == 'pspnet34':
-        model = SuctionPSPNet(options)
+    model = build_model(args.arch, options)
     checkpoint = torch.load(args.checkpoint)
     model.load_state_dict(checkpoint['model_state_dict'])
+
+    torch.save({
+        'epoch': checkpoint['epoch'],
+        'iteration': checkpoint['iteration'],
+        'arch': args.arch,
+        'optim_state_dict': checkpoint['optim_state_dict'],
+        'model_state_dict': checkpoint['model_state_dict'],
+        'best_mean_iu': checkpoint['best_mean_iu'],
+        'best_prec': checkpoint['best_prec'],
+    }, args.checkpoint)
 
     # random input
     print("tracing model...")
