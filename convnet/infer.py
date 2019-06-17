@@ -29,7 +29,7 @@ class Options(object):
         self.img_width = 640
         self.output_scale = 8
         self.n_class = 3
-        self.arch = 'resnet18'
+        self.arch = ''
         self.device = 'cuda:0'
 
 if __name__ == "__main__":
@@ -40,7 +40,7 @@ if __name__ == "__main__":
         '--checkpoint', required=True, help='model path',
     )
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
+        '-a', '--arch', metavar='arch', default='', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
@@ -53,17 +53,17 @@ if __name__ == "__main__":
     np.random.seed(int(time.time()))
 
     options = Options()
-    options.arch = args.arch if args.arch != '' else options.arch
     options.data_path = args.data_path if args.data_path != '' else options.data_path
     options.model_path = args.checkpoint
 
     ## get model
-    model = build_model(args.arch, options)
+    checkpoint = torch.load(options.model_path)
+    options.arch = args.arch if args.arch != '' else checkpoint['arch']
+    model = build_model(options.arch, options)
     model.eval()
     model.to(options.device)
 
     ## get model weight
-    checkpoint = torch.load(options.model_path)
     model.load_state_dict(checkpoint['model_state_dict'])
 
     ## get random or user selected image input 

@@ -34,7 +34,7 @@ class Options(object):
         self.img_width = 640
         self.output_scale = 8
         self.n_class = 3
-        self.arch = 'resnet18'
+        self.arch = ''
         self.device = 'cuda:0'
         self.visualize = False # don't visualize it, there is a memory bug on matplotlib
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
         'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='resnet101', choices=model_choices,
+        '-a', '--arch', metavar='arch', default='', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
@@ -74,12 +74,13 @@ if __name__ == "__main__":
         # fig.canvas.set_window_title('Evaluation Result')
 
     ## prepare model
-    model = build_model(args.arch, options)
+    checkpoint = torch.load(options.model_path)
+    options.arch = args.arch if args.arch != '' else checkpoint['arch']
+    model = build_model(options.arch, options)
     model.eval()
     model.to(options.device)
     
     ## get model weight
-    checkpoint = torch.load(options.model_path)
     model.load_state_dict(checkpoint['model_state_dict'])
 
     test_img_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
