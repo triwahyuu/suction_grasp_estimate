@@ -225,7 +225,7 @@ class Trainer(object):
         torch.save({
             'epoch': self.epoch,
             'iteration': self.iteration,
-            'arch': self.model.__class__.__name__,
+            'arch': self.arch,
             'optim_state_dict': self.optim.state_dict(),
             'model_state_dict': self.model.state_dict(),
             'best_mean_iu': self.best_mean_iu,
@@ -235,7 +235,7 @@ class Trainer(object):
             torch.save({
             'epoch': self.epoch,
             'iteration': self.iteration,
-            'arch': self.model.__class__.__name__,
+            'arch': self.arch,
             'optim_state_dict': self.optim.state_dict(),
             'optim_dec_state_dict': self.optim_dec.state_dict(),
             'model_state_dict': self.model.state_dict(),

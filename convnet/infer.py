@@ -13,7 +13,7 @@ import torch.backends.cudnn as cudnn
 import numpy as np
 from PIL import Image
 from skimage.transform import resize
-import scipy.special
+from scipy.ndimage import gaussian_filter
 
 
 cudnn.benchmark = True
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--checkpoint', required=False, default="../result/02_resnet18/20190616_230247/model_prec_best.pth.tar", help='model path',
+        '--checkpoint', required=True, help='model path',
     )
     parser.add_argument(
         '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # surface_norm, affordance_map, class_pred = post_process(affordance, cls_pred, rgb_in, rgb_bg,
     #     depth_in, depth_bg, cam_intrinsic)
     affordance[~cls_pred.astype(np.bool)] = 0
-    affordance_map = affordance
+    affordance_map = gaussian_filter(affordance, 4)
     tm = time.time() - t
 
     affordance_img = (affordance_map * 255).astype(np.uint8)
