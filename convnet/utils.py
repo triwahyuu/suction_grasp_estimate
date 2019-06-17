@@ -22,8 +22,7 @@ def prepare_input(color, depth, device):
     depth_img = normalize(depth_img)
     depth_img = depth_img.view(1, depth_img.size(0), depth_img.size(1), depth_img.size(2))
 
-    img_input = [color_img.to(device), depth_img.to(device)]
-    return img_input
+    return color_img.to(device), depth_img.to(device)
 
 
 def count_parameters(model):

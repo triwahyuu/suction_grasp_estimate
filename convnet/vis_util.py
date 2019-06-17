@@ -83,20 +83,19 @@ def post_process(affordance_map, class_pred,
     affordance_map[~foreground_mask] = 0
     class_pred[baseline_score < 0.1] = 0
     class_pred[~foreground_mask] = 0
+    affordance_map[~class_pred.astype(np.bool)] = 0
+    affordance_map = gaussian_filter(affordance_map, 4)
 
     return surface_normals_map, affordance_map, class_pred
 
 
 ## predict the affordance map and surface normal map
 ## take the inputs of PIL image and the camera intrinsic matrix in numpy
-def visualize(affordance_map, surface_normals_map, class_pred, color_input):
-    affordance_filt = gaussian_filter(affordance_map, 4)
-    surface_normals_map = np.interp(surface_normals_map,
-        (surface_normals_map.min(), surface_normals_map.max()), (0.0, 1.0))
+def visualize(affordance_map, class_pred, color_input, surface_normals_map=None):
     color_input = np.asarray(color_input, dtype=np.float64) / 255
 
     cmap = cm.get_cmap('jet')
-    affordance = cmap(affordance_filt)[:,:,:-1] # ommit last channel (get rgb)
+    affordance = cmap(affordance_map)[:,:,:-1] # ommit last channel (get rgb)
     img = affordance*0.5 + color_input*0.5
 
     cmap_cls = cm.get_cmap('Paired')
@@ -104,7 +103,7 @@ def visualize(affordance_map, surface_normals_map, class_pred, color_input):
     cls_img = cls_img*0.5 + color_input*0.5
 
     ## best picking point
-    max_point = np.argmax(affordance_filt)
+    max_point = np.argmax(affordance_map)
     max_point = (max_point//affordance.shape[1], max_point%affordance.shape[1])
     max_circ = patches.Circle(np.flip(max_point), radius=8, fill=False, linewidth=4.0, color='k')
 
@@ -124,11 +123,14 @@ def visualize(affordance_map, surface_normals_map, class_pred, color_input):
     ax1.set_axis_off()
 
     ## surface normal
-    fig2, ax2 = plt.subplots()
-    fig2.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
-    fig2.canvas.set_window_title('Surface Normals')
-    ax2.imshow(surface_normals_map)
-    ax2.set_axis_off()
+    if surface_normals_map is not None:
+        surface_normals_map = np.interp(surface_normals_map,
+            (surface_normals_map.min(), surface_normals_map.max()), (0.0, 1.0))
+        fig2, ax2 = plt.subplots()
+        fig2.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
+        fig2.canvas.set_window_title('Surface Normals')
+        ax2.imshow(surface_normals_map)
+        ax2.set_axis_off()
 
     plt.show()
 

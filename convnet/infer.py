@@ -37,10 +37,10 @@ if __name__ == "__main__":
         'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--checkpoint', required=True, help='model path',
+        '--checkpoint', required=False, default="../result/02_resnet18/20190616_230247/model_prec_best.pth.tar", help='model path',
     )
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='resnet101', choices=model_choices,
+        '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
@@ -76,12 +76,12 @@ if __name__ == "__main__":
     label = Image.open(os.path.join(options.data_path, 'label', input_file + '.png'))
     cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', input_file + '.txt'))
 
-    img_input = prepare_input(rgb_in, depth_in, options.device)
+    rgb_input, ddd_input = prepare_input(rgb_in, depth_in, options.device)
 
     ## inference
     print('computing inference: ', input_file)
     t = time.time()
-    output = model(img_input)
+    output = model(rgb_input, ddd_input)
 
     cls_pred = np.squeeze(output.data.max(1)[1].cpu().numpy(), axis=0).astype(np.float64)
     cls_pred = resize(cls_pred, (options.img_height, options.img_width), 
@@ -93,8 +93,11 @@ if __name__ == "__main__":
     affordance = np.interp(pred, (pred.min(), pred.max()), (0.0, 1.0))
 
     ## post-processing
-    surface_norm, affordance_map, cls_pred = post_process(affordance, cls_pred, rgb_in, rgb_bg,
-        depth_in, depth_bg, cam_intrinsic)
+    surface_norm = None
+    # surface_norm, affordance_map, class_pred = post_process(affordance, cls_pred, rgb_in, rgb_bg,
+    #     depth_in, depth_bg, cam_intrinsic)
+    affordance[~cls_pred.astype(np.bool)] = 0
+    affordance_map = affordance
     tm = time.time() - t
 
     affordance_img = (affordance_map * 255).astype(np.uint8)
@@ -113,4 +116,4 @@ if __name__ == "__main__":
     print("   prec       recall       iou   ")
     print("%.8f  %.8f  %.8f" % (precision, recall, iou))
     
-    visualize(affordance_map, surface_norm, cls_pred, np.array(rgb_in))
+    visualize(affordance_map, cls_pred, np.array(rgb_in), surface_norm)

@@ -91,16 +91,13 @@ if __name__ == "__main__":
         print(input_path, "%d/%d: " % (n, test_len), end='')
         
         color_in = Image.open(os.path.join(options.data_path, 'color-input', input_path + '.png'))
-        color_bg = Image.open(os.path.join(options.data_path, 'color-background', input_path + '.png'))
         depth_in = Image.open(os.path.join(options.data_path, 'depth-input', input_path + '.png'))
-        depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', input_path + '.png'))
         label = Image.open(os.path.join(options.data_path, 'label', input_path + '.png'))
-        cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', input_path + '.txt'))
-        img_input = prepare_input(color_in, depth_in, options.device)
+        rgb_input, ddd_input = prepare_input(color_in, depth_in, options.device)
 
         ## forward pass
         t = time.time()
-        output = model(img_input)
+        output = model(rgb_input, ddd_input)
         inf_t = time.time() - t
 
         ## get segmentation class prediction
@@ -116,14 +113,11 @@ if __name__ == "__main__":
 
         ## post-processing
         t = time.time()
-        surface_norm, affordance_map, cls_pred = post_process(affordance, cls_pred,
-            color_in, color_bg, depth_in, depth_bg, cam_intrinsic)
-        affordance_map = gaussian_filter(affordance_map, 7)
+        affordance[~cls_pred.astype(np.bool)] = 0
+        affordance_map = gaussian_filter(affordance, 4)
         post_t = time.time() - t
         time_data[n,:] = np.array([inf_t, post_t], dtype=np.float64)
 
-        surface_norm = np.interp(surface_norm,
-            (surface_norm.min(), surface_norm.max()), (0.0, 1.0))
         color_in = np.asarray(color_in, dtype=np.float64) / 255
 
         ## calculate metrics
@@ -160,41 +154,20 @@ if __name__ == "__main__":
             max_circ = patches.Circle(np.flip(max_point), radius=8, fill=False, linewidth=4.0, color='k')
 
             depth_np = np.array(depth_in, dtype=np.float64) / 65536
-            plt.subplot(2,3,1)
+            plt.subplot(2,2,1)
             plt.imshow(color_in)
             plt.yticks([]); plt.xticks([])
-            plt.subplot(2,3,2)
+            plt.subplot(2,2,2)
             plt.imshow(affordance_viz)
             plt.yticks([]); plt.xticks([])
-            plt.subplot(2,3,3)
-            plt.imshow(surface_norm)
-            plt.yticks([]); plt.xticks([])
-            plt.subplot(2,3,4)
+            plt.subplot(2,2,3)
             plt.imshow(label_np)
             plt.yticks([]); plt.xticks([])
-            plt.subplot(2,3,5)
+            plt.subplot(2,2,4)
             plt.imshow(cls_img)
-            plt.yticks([]); plt.xticks([])
-            plt.subplot(2,3,6)
-            plt.imshow(depth_np)
             plt.yticks([]); plt.xticks([])
             plt.draw()
             plt.pause(0.01)
-            
-            # ax[0, 0].imshow(color_in)
-            # ax[1, 0].imshow(label_np)
-            # ax[0, 1].imshow(affordance_viz)
-            # ax[1, 1].imshow(cls_img)
-            # ax[0, 2].imshow(surface_norm)
-            # ax[1, 2].imshow(depth_np, cmap='gray')
-            # ax[0, 0].set_axis_off()
-            # ax[0, 1].set_axis_off()
-            # ax[0, 2].set_axis_off()
-            # ax[1, 0].set_axis_off()
-            # ax[1, 1].set_axis_off()
-            # ax[1, 2].set_axis_off()
-            # fig.canvas.draw()
-            # fig.canvas.flush_events()
     
     metrics_data[np.isnan(metrics_data)] = 0
     s = np.sum(metrics_data, axis=0)
