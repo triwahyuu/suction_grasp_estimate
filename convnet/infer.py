@@ -69,12 +69,13 @@ if __name__ == "__main__":
     ## get random or user selected image input 
     sample_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
     input_file = np.random.choice(sample_list, 1)[0] if args.img_input == '' else args.img_input
+
     rgb_in = Image.open(os.path.join(options.data_path, 'color-input', input_file + '.png'))
-    rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', input_file + '.png'))
     depth_in = Image.open(os.path.join(options.data_path, 'depth-input', input_file + '.png'))
-    depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', input_file + '.png'))
     label = Image.open(os.path.join(options.data_path, 'label', input_file + '.png'))
-    cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', input_file + '.txt'))
+    # rgb_bg = Image.open(os.path.join(options.data_path, 'color-background', input_file + '.png'))
+    # depth_bg = Image.open(os.path.join(options.data_path, 'depth-background', input_file + '.png'))
+    # cam_intrinsic = np.loadtxt(os.path.join(options.data_path, 'camera-intrinsics', input_file + '.txt'))
 
     rgb_input, ddd_input = prepare_input(rgb_in, depth_in, options.device)
 

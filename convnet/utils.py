@@ -17,9 +17,9 @@ def prepare_input(color, depth, device):
     color_img = normalize(to_tensor(color))
     color_img = color_img.view(1, color_img.size(0), color_img.size(1), color_img.size(2))
 
-    depth = (to_tensor(np.asarray(depth, dtype=np.float32)) * 65536/10000).clamp(0.0, 1.2)
-    depth_img = torch.cat([depth, depth, depth], 0)
-    depth_img = normalize(depth_img)
+    depth_img = (np.asarray(depth, dtype=np.float64) / 8000).astype(np.float32).clip(0.0, 1.5)
+    depth_img = np.stack([depth_img, depth_img, depth_img], axis=2)
+    depth_img = normalize(to_tensor(depth_img))
     depth_img = depth_img.view(1, depth_img.size(0), depth_img.size(1), depth_img.size(2))
 
     return color_img.to(device), depth_img.to(device)
