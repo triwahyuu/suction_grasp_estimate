@@ -5,6 +5,9 @@ import os
 import math
 import numpy as np
 
+from skimage.transform import resize
+from scipy.ndimage import gaussian_filter
+
 from torchvision.transforms import ToTensor, Normalize, Resize
 import torch
 
@@ -24,6 +27,21 @@ def prepare_input(color, depth, device):
 
     return color_img.to(device), depth_img.to(device)
 
+
+def post_process_output(out_tensor, options):
+    cls_pred = np.squeeze(out_tensor.data.max(1)[1].cpu().numpy(), axis=0).astype(np.float64)
+    cls_pred = resize(cls_pred, (options.img_height, options.img_width), 
+        anti_aliasing=True, mode='reflect')
+
+    pred = np.squeeze(out_tensor.data.cpu().numpy(), axis=0)[1,:,:]
+    pred = resize(pred, (options.img_height, options.img_width), 
+        anti_aliasing=True, mode='reflect')
+
+    affordance = np.interp(pred, (pred.min(), pred.max()), (0.0, 1.0))
+    affordance[~cls_pred.astype(np.bool)] = 0
+    affordance = gaussian_filter(affordance, 4)
+
+    return cls_pred, affordance
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

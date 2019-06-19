@@ -1,6 +1,6 @@
 ## inference script 
 from vis_util import visualize
-from utils import prepare_input
+from utils import prepare_input, post_process_output
 from vis_util import post_process
 from models.model import build_model
 
@@ -12,9 +12,6 @@ import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
 from PIL import Image
-from skimage.transform import resize
-from scipy.ndimage import gaussian_filter
-
 
 cudnn.benchmark = True
 cudnn.enabled = True
@@ -84,21 +81,8 @@ if __name__ == "__main__":
     t = time.time()
     output = model(rgb_input, ddd_input)
 
-    cls_pred = np.squeeze(output.data.max(1)[1].cpu().numpy(), axis=0).astype(np.float64)
-    cls_pred = resize(cls_pred, (options.img_height, options.img_width), 
-        anti_aliasing=True, mode='reflect')
-
-    pred = np.squeeze(output.data.cpu().numpy(), axis=0)[1,:,:]
-    pred = resize(pred, (options.img_height, options.img_width), 
-        anti_aliasing=True, mode='reflect')
-    affordance = np.interp(pred, (pred.min(), pred.max()), (0.0, 1.0))
-
     ## post-processing
-    surface_norm = None
-    # surface_norm, affordance_map, class_pred = post_process(affordance, cls_pred, rgb_in, rgb_bg,
-    #     depth_in, depth_bg, cam_intrinsic)
-    affordance[~cls_pred.astype(np.bool)] = 0
-    affordance_map = gaussian_filter(affordance, 4)
+    cls_pred, affordance_map = post_process_output(output, options)
     tm = time.time() - t
 
     affordance_img = (affordance_map * 255).astype(np.uint8)
@@ -117,4 +101,4 @@ if __name__ == "__main__":
     print("   prec       recall       iou   ")
     print("%.8f  %.8f  %.8f" % (precision, recall, iou))
     
-    visualize(affordance_map, cls_pred, np.array(rgb_in), surface_norm)
+    visualize(affordance_map, cls_pred, np.array(rgb_in))
