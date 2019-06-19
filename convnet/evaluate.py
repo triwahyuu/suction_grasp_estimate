@@ -1,6 +1,5 @@
 from vis_util import visualize
-from utils import prepare_input
-from vis_util import post_process
+from utils import prepare_input, post_process_output
 from models.model import build_model
 
 import os
@@ -12,8 +11,6 @@ import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
 from PIL import Image
-from skimage.transform import resize
-from scipy.ndimage import gaussian_filter
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -87,7 +84,7 @@ if __name__ == "__main__":
     test_len = len(test_img_list)
 
     metrics_data = np.zeros((test_len, 5), dtype=np.int64)  # [tp, tn, fp, fn, memory]
-    time_data = np.zeros((test_len,2), dtype=np.float64)    # [inference, post-processing]
+    time_data = np.zeros((test_len,1), dtype=np.float64)    # [inference, post-processing]
     for n, input_path in enumerate(test_img_list):
         print(input_path, "%d/%d: " % (n, test_len), end='')
         
@@ -99,25 +96,10 @@ if __name__ == "__main__":
         ## forward pass
         t = time.time()
         output = model(rgb_input, ddd_input)
-        inf_t = time.time() - t
 
-        ## get segmentation class prediction
-        cls_pred = np.squeeze(output.data.max(1)[1].cpu().numpy(), axis=0).astype(np.float64)
-        cls_pred = resize(cls_pred, (options.img_height, options.img_width),
-            anti_aliasing=True, mode='reflect')
-        
-        ## get the probability of suction area (index 1)
-        pred = np.squeeze(output.data.cpu().numpy(), axis=0)[1,:,:]
-        pred = resize(pred, (options.img_height, options.img_width), 
-            anti_aliasing=True, mode='reflect')
-        affordance = np.interp(pred, (pred.min(), pred.max()), (0.0, 1.0))
-
-        ## post-processing
-        t = time.time()
-        affordance[~cls_pred.astype(np.bool)] = 0
-        affordance_map = gaussian_filter(affordance, 4)
-        post_t = time.time() - t
-        time_data[n,:] = np.array([inf_t, post_t], dtype=np.float64)
+        cls_pred, affordance_map = post_process_output(output, options)
+        inf_time = time.time() - t
+        time_data[n,0] = inf_time
 
         color_in = np.asarray(color_in, dtype=np.float64) / 255
 
@@ -136,7 +118,7 @@ if __name__ == "__main__":
         iou = tp/(tp + fp + fn) if (tp + fp + fn) != 0 else 0
         mem = torch.cuda.max_memory_allocated()
         metrics_data[n,:] = np.array([tp, tn, fp, fn, mem])
-        print("%.8f  %.8f  %.8f  %.8f  %.8f" % (precision, recall, iou, inf_t, post_t))
+        print("%.8f  %.8f  %.8f  %.8f" % (precision, recall, iou, inf_time))
         torch.cuda.reset_max_memory_allocated()
 
         ## visualize
@@ -176,11 +158,10 @@ if __name__ == "__main__":
     precision = s[0]/(s[0]+s[2])
     recall = s[0]/(s[0]+s[3])
     mean_iou = s[0]/(s[0]+s[2]+s[3])
-    mean_time = np.mean(time_data, axis=0)*1000
+    mean_time = np.mean(time_data)*1000
     print("\n\n    precision             recall               iou       ")
     print("%.16f  %.16f  %.16f" % (precision, recall, mean_iou))
-    print("average inference time: ", mean_time[0], "ms")
-    print("average post-processing time: ", mean_time[1], "ms")
+    print("average inference time: ", mean_time, "ms")
     print("max GPU memory: ", ave_mem/2**30, "GB")
 
     data = np.append(metrics_data, time_data, axis=1)
