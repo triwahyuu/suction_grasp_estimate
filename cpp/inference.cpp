@@ -12,55 +12,12 @@
 #include <memory>
 #include <string>
 #include <vector>
-
-#define kIMAGE_WIDTH    640
-#define kIMAGE_HEIGHT   480
-#define kCHANNELS       3
-
-bool load_dataset(std::string data_path, std::string file_id, std::vector<cv::Mat> &imgs) {
-    data_path = (data_path.back() != '/') ? (data_path + "/") : data_path;
-    std::string img_color_path = data_path + "color-input/" + file_id + ".png";
-    std::string img_depth_path = data_path + "depth-input/" + file_id + ".png";
-
-    if(is_exist(img_color_path) && is_exist(img_depth_path)){
-        cv::Mat img_color, img_depth;
-        cv::Scalar mean(0.485, 0.456, 0.406), std_dev(0.229,0.224,0.225);
-
-        img_color = cv::imread(img_color_path);
-        cv::cvtColor(img_color, img_color, CV_BGR2RGB);
-        img_color.convertTo(img_color, CV_32FC3, 1.0f/255.0f);
-        img_color = normalize_data(img_color, mean, std_dev);
-
-        img_depth = cv::imread(img_depth_path, cv::IMREAD_UNCHANGED);
-        img_depth.convertTo(img_depth, CV_32FC3, 1.0f/8000.0f);
-        cv::Mat depth_split[3] = {img_depth, img_depth, img_depth};
-        cv::Mat img_ddd;
-        cv::merge(depth_split, 3, img_ddd);
-
-        imgs.push_back(img_color);
-        imgs.push_back(img_ddd);
-    }
-    else{
-        std::cerr << "data file_id not exist" << std::endl;
-        return false;
-    }
-    
-    // image = cv::imread(data_path + "color" + file_id);  // CV_8UC3
-    // if (image.empty() || !image.data) {
-    //     return false;
-    // }
-
-    // cv::cvtColor(image, image, CV_BGR2RGB);
-    // image.convertTo(image, CV_32FC3, 1.0f / 255.0f);
-
-    return true;
-}
+#include <chrono>
 
 int main(int argc, const char *argv[]) 
 {
-    if (argc != 3) {
-        // std::cerr << "Usage: inference <path-to-model> <path-to-dataset> <img-id>"
-        std::cerr << "Usage: inference <path-to-dataset> <img-id>"
+    if (argc != 4) {
+        std::cerr << "Usage: inference <path-to-model> <path-to-dataset> <img-id>"
                 << std::endl;
         return -1;
     }
@@ -73,69 +30,54 @@ int main(int argc, const char *argv[])
         std::cout << "Using CPU." << std::endl;
         device_type = torch::kCPU;
     }
-    torch::Device device(device_type);
+    torch::Device device(torch::kCPU);
 
-    std::string dataset_path(argv[1]);
-    std::string fileid(argv[2]);
+    std::string model_path(argv[1]);
+    std::string dataset_path(argv[2]);
+    std::string fileid(argv[3]);
 
-    std::vector<cv::Mat> img_data;
-    load_dataset(dataset_path, fileid, img_data);
-    torch::Tensor color_img = torch::from_blob(img_data[0].data, 
-        {1, kIMAGE_WIDTH, kIMAGE_HEIGHT, 3},
-        torch::kFloat32
-    );
-    torch::Tensor ddd_img = torch::from_blob(img_data[1].data, 
-        {1, kIMAGE_WIDTH, kIMAGE_HEIGHT, 3},
-        torch::kFloat32
-    );
-    color_img = color_img.permute({0, 3, 1, 2});
-    ddd_img = ddd_img.permute({0, 3, 1, 2});
-    std::cout << color_img.sizes() << std::endl;
+    // load data
+    std::vector<torch::Tensor> img_data;
+    load_dataset_prep(dataset_path, fileid, img_data);
+    auto color_input = img_data[0], ddd_input = img_data[1];
+    color_input = color_input.to(device);
+    ddd_input = ddd_input.to(device);
+    std::cout << "== Data loaded!\n";
 
-    // std::shared_ptr<torch::jit::script::Module> module = torch::jit::load(argv[1]);
-    // module->to(at::kCUDA); // to GPU
-    // assert(module != nullptr);
-    // std::cout << "== Model loaded!\n";
+    struct torch::data::transforms::Normalize<torch::Tensor> 
+        normalize_tensor({0.4914, 0.4822, 0.4465}, {0.2023, 0.1994, 0.2010});
 
-    // std::vector<std::string> labels;
-    // if (LoadImageNetLabel(argv[2], labels)) {
-    //     std::cout << "== Label loaded! Let's try it\n";
-    // } else {
-    //     std::cerr << "Please check your label file path." << std::endl;
-    //     return -1;
-    // }
+    // load model
+    std::shared_ptr<torch::jit::script::Module> module = torch::jit::load(model_path, device);
+    module->eval();
+    assert(module != nullptr);
+    std::cout << "== Model loaded!\n";
 
-    // // std::string file_name = "";
-    // cv::Mat image;
-    // if (LoadImage(argv[3], image)) {
-    //     auto input_tensor = torch::from_blob(image.data, {1, kIMAGE_SIZE, kIMAGE_SIZE, kCHANNELS});
-    //     input_tensor = input_tensor.permute({0, 3, 1, 2});
-    //     input_tensor[0][0] = input_tensor[0][0].sub_(0.485).div_(0.229);
-    //     input_tensor[0][1] = input_tensor[0][1].sub_(0.456).div_(0.224);
-    //     input_tensor[0][2] = input_tensor[0][2].sub_(0.406).div_(0.225);
+    // inference
+    auto start = std::chrono::high_resolution_clock::now();
+    torch::Tensor out_tensor = module->forward({color_input, ddd_input}).toTensor();
+    auto end = std::chrono::high_resolution_clock::now();
+    auto infer_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "inference time:\t" << infer_duration.count() << " ms\n";
 
-    //     // to GPU
-    //     input_tensor = input_tensor.to(at::kCUDA);
-
-    //     torch::Tensor out_tensor = module->forward({input_tensor}).toTensor();
-
-    //     auto results = out_tensor.sort(-1, true);
-    //     auto softmaxs = std::get<0>(results)[0].softmax(0);
-    //     auto indexs = std::get<1>(results)[0];
-
-    //     for (int i = 0; i < kTOP_K; i++) {
-    //         auto idx = indexs[i].item<int>();
-    //         std::cout << "    ============= Top-" << i + 1
-    //                     << " =============" << std::endl;
-    //         std::cout << "    Label:  " << labels[idx] << std::endl;
-    //         std::cout << "    With Probability:  "
-    //                     << softmaxs[i].item<float>() * 100.0f << "%" << std::endl;
-    //     }
-    //     return 0;
-    // } 
-    // else {
-    //     std::cout << "Can't load the image, please check your path." << std::endl;
-    //     return -1;
-    // }
+    auto cls_pred = out_tensor.argmax(1).to(torch::kFloat32);
+    auto aff_pred = out_tensor.to(torch::kFloat32)[0][1];
+    // std::cout << aff_pred.min() << "  " << aff_pred.max() << std::endl;
     
+    // aff_pred = torch::upsample_bilinear2d(aff_pred, {kIMAGE_HEIGHT, kIMAGE_WIDTH}, false);
+    aff_pred = (aff_pred - aff_pred.min())/(aff_pred.max() - aff_pred.min());
+
+    // std::cout << aff_pred.sizes() << std::endl;
+    // std::cout << aff_pred.min() << "  " << aff_pred.max() << std::endl;
+
+    cv::Mat aff_img(kIMAGE_WIDTH, kIMAGE_HEIGHT, CV_8UC1);
+    torch::Tensor out_img = aff_pred.mul(255).clamp(0, 255).to(torch::kU8);
+    std::memcpy((void*)aff_img.data, out_img.data_ptr(),sizeof(torch::kU8)*out_img.numel());
+    cv::resize(aff_img, aff_img, cv::Size2i(kIMAGE_WIDTH, kIMAGE_HEIGHT));
+
+    cv::namedWindow("output data", cv::WINDOW_AUTOSIZE);
+    cv::imshow("output data", aff_img);
+    cv::waitKey(0);
+
+    return 0;
 }
