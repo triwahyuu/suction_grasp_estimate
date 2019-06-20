@@ -315,6 +315,7 @@ class SuctionBiSeNet(nn.Module):
         self.depth_spatial = SpatialPath()
         
         self.segment = BiSeNet(options.n_class, self.backbone)
+        self.upsample = nn.Upsample(size=(options.img_height, options.img_width), mode='bilinear')
         updatePadding(self.segment, nn.ReflectionPad2d)
     
     def forward(self, rgb_input, ddd_input):
@@ -333,7 +334,7 @@ class SuctionBiSeNet(nn.Module):
         rgbd_sx = torch.cat((rgb_sx, depth_sx), 1)
         
         out = self.segment(rgbd_sx, rgbd_cx1, rgbd_cx2, rgbd_tail)
-        return out
+        return self.upsample(out[0]), self.upsample(out[1]), self.upsample(out[2])
     
     def _create_trunk(self):
         m = build_contextpath(self.backbone)

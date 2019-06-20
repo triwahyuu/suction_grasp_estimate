@@ -15,6 +15,7 @@ from __future__ import print_function, division
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
@@ -78,7 +79,7 @@ class Trainer(object):
     def __init__(self, model, optimizers, loss, train_loader, val_loader, 
                  output_path, log_path, max_epoch=200, max_iter=None, arch='resnet18',
                  cuda=True, interval_validate=None, freeze_bn=True, use_amp=False, 
-                 **kwargs):
+                 lr_scheduler=None, **kwargs):
         self.cuda = cuda
 
         self.model = model
@@ -92,6 +93,7 @@ class Trainer(object):
         if 'rfnet' in self.arch:
             self.optim = optimizers[0]
             self.optim_dec = optimizers[1]
+        self.scheduler = lr_scheduler
 
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -175,18 +177,19 @@ class Trainer(object):
 
                 output = self.model(rgb_img, ddd_img)
                 if self.val_loader.dataset.encode_label:
-                    output = nn.functional.interpolate(output, size=target.size()[2:],
+                    output = F.interpolate(output, size=target.size()[2:],
                         mode='bilinear', align_corners=False)
                 else:
-                    output = nn.functional.interpolate(output, size=target.size()[1:],
+                    output = F.interpolate(output, size=target.size()[1:],
                         mode='bilinear', align_corners=False)
                 
-                if 'bisenet' not in self.arch:
-                    loss = self.criterion(output, target)
-                    loss_data = loss.data.item()
-                    if np.isnan(loss_data):
-                        raise ValueError('loss is nan while validating')
-                    val_loss += loss_data / len(rgb_img)
+                loss = self.criterion(output, target)
+                loss_data = loss.data.item()
+                if 'bisenet' in self.arch:
+                    nn.utils.clip_grad_norm_(self.model.parameters(), 0.25)
+                if np.isnan(loss_data):
+                    raise ValueError('loss is nan while validating')
+                val_loss += loss_data / len(rgb_img)
 
             ## some stats
             lbl_pred = output.data.max(1)[1].cpu().numpy().squeeze()
@@ -204,14 +207,10 @@ class Trainer(object):
             elapsed_time = (
                 datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
                 self.timestamp_start).total_seconds()
-            if 'bisenet' not in self.arch:
-                val_loss /= len(self.val_loader)
-                log = [self.epoch, self.iteration] + [''] * 5 + \
-                    ['%.10f' %(val_loss)] + ['%.10f' %(val_prec)] + \
-                    metrics_str + [elapsed_time]
-            else:
-                log = [self.epoch, self.iteration] + [''] * 5 + \
-                    ['%.10f' %(val_prec)] + metrics_str + [elapsed_time]
+                
+            val_loss /= len(self.val_loader)
+            log = [self.epoch, self.iteration] + [''] * 5 + \
+                ['%.10f' %(val_loss)] + metrics_str + [elapsed_time]
             log = map(str, log)
             f.write(','.join(log) + '\n')
 
@@ -250,13 +249,15 @@ class Trainer(object):
             shutil.copy(osp.join(self.output_path, 'checkpoint.pth.tar'),
                         osp.join(self.output_path, 'model_prec_best.pth.tar'))
         
-        if 'bisenet' not in self.arch:
-            self.writer.add_scalar('val/loss', val_loss, self.epoch)
+        self.writer.add_scalar('val/loss', val_loss, self.epoch)
         self.writer.add_scalar('val/precision', val_prec, self.epoch)
         self.writer.add_scalar('val/accuracy', metrics[0], self.epoch)
         self.writer.add_scalar('val/acc_class', metrics[1], self.epoch)
         self.writer.add_scalar('val/mean_iu', metrics[2], self.epoch)
         self.writer.add_scalar('val/fwacc', metrics[3], self.epoch)
+
+        if self.scheduler != None:
+            self.scheduler.step(val_prec)
 
         if self.training:
             self.model.train()
@@ -286,35 +287,16 @@ class Trainer(object):
             ## compute output of feed forward
             output = self.model(rgb_img, ddd_img)
             if 'bisenet' in self.arch:
-                out_sup1 = nn.functional.interpolate( # supervise 1 output
-                    output[1], size=target.size()[1:], mode='bilinear', align_corners=False
-                )
-                out_sup2 = nn.functional.interpolate( # supervise 2 output
-                    output[2], size=target.size()[1:], mode='bilinear', align_corners=False
-                )
-                output = nn.functional.interpolate( # main output
-                    output[0], size=target.size()[1:], mode='bilinear', align_corners=False
-                )
+                out_sup1 = F.interpolate(output[1], size=target.size()[1:], mode='bilinear')
+                out_sup2 = F.interpolate(output[2], size=target.size()[1:], mode='bilinear')
+                output = F.interpolate(output[0], size=target.size()[1:], mode='bilinear')
             elif 'icnet' in self.arch:
-                out_sub24 = nn.functional.interpolate(
-                    output[1], size=target.size()[1:], mode='bilinear', align_corners=False
-                )
-                out_sub4 = nn.functional.interpolate(
-                    output[2], size=target.size()[1:], mode='bilinear', align_corners=False
-                )
-                output = nn.functional.interpolate(
-                    output[0], size=target.size()[1:], mode='bilinear', align_corners=False
-                )
-            else:
-                if self.train_loader.dataset.encode_label:
-                    output = nn.functional.interpolate(
-                        output, size=target.size()[2:], mode='bilinear', align_corners=False
-                    )
-                    target = target.float()
-                else:
-                    output = nn.functional.interpolate(
-                        output, size=target.size()[1:], mode='bilinear', align_corners=False
-                    )
+                out_sub24 = F.interpolate(output[1], size=target.size()[1:], mode='bilinear')
+                out_sub4 = F.interpolate(output[2], size=target.size()[1:], mode='bilinear')
+                output = F.interpolate(output[0], size=target.size()[1:], mode='bilinear')
+            elif self.train_loader.dataset.encode_label:
+                output = F.interpolate(output, size=target.size()[2:], mode='bilinear')
+                target = target.float()
 
             ## compute loss and backpropagate
             loss = None
@@ -413,10 +395,10 @@ if __name__ == "__main__":
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet101)'
     )
     parser.add_argument(
-        '--lr', type=float, default=1.0e-3, help='learning rate',
+        '--lr', type=float, default=0.0, help='learning rate',
     )
     parser.add_argument(
-        '--momentum', type=float, default=0.99, help='momentum',
+        '--momentum', type=float, default=0.0, help='momentum',
     )
     parser.add_argument(
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
@@ -445,8 +427,11 @@ if __name__ == "__main__":
 
     result_path = osp.join(options.proj_path, 'result')
     now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    options.arch = args.arch
     device = torch.device("cpu" if args.use_cpu else "cuda:0")
+    options.arch = args.arch
+
+    args.lr = 0.001 if args.lr == 0.0 else args.lr
+    args.momentum = 0.99 if args.momentum == 0.0 else args.momentum
 
     if args.data_path != '':
         options.data_path = args.data_path
@@ -481,7 +466,12 @@ if __name__ == "__main__":
         criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
 
     ## Optimizer
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, nesterov=True)
+    scheduler = None
+    if 'bisenet' in options.arch:
+        args.lr = 0.01
+        args.momentum = 0.98
+        # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=5)
 
     if 'rfnet' in args.arch:
         import re
