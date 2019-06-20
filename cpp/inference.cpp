@@ -64,16 +64,24 @@ int main(int argc, const char *argv[])
     auto aff_pred = out_tensor.to(torch::kFloat32)[0][1];
     // std::cout << aff_pred.min() << "  " << aff_pred.max() << std::endl;
     
-    // aff_pred = torch::upsample_bilinear2d(aff_pred, {kIMAGE_HEIGHT, kIMAGE_WIDTH}, false);
+    // auto aff_pred = torch::upsample_bilinear2d(aff_pred, {kIMAGE_HEIGHT, kIMAGE_WIDTH}, false);
     aff_pred = (aff_pred - aff_pred.min())/(aff_pred.max() - aff_pred.min());
 
+    // std::cout << cls_pred.sizes() << std::endl;
     // std::cout << aff_pred.sizes() << std::endl;
     // std::cout << aff_pred.min() << "  " << aff_pred.max() << std::endl;
 
-    cv::Mat aff_img(kIMAGE_WIDTH, kIMAGE_HEIGHT, CV_8UC1);
+    cv::Mat aff_img(80, 60, CV_8UC1);
     torch::Tensor out_img = aff_pred.mul(255).clamp(0, 255).to(torch::kU8);
     std::memcpy((void*)aff_img.data, out_img.data_ptr(),sizeof(torch::kU8)*out_img.numel());
     cv::resize(aff_img, aff_img, cv::Size2i(kIMAGE_WIDTH, kIMAGE_HEIGHT));
+
+    cv::Mat cls_img(80, 60, CV_8UC1);
+    torch::Tensor cls_new = cls_pred.mul(255).clamp(0, 255).to(torch::kU8);
+    std::memcpy((void*)cls_img.data, cls_new.data_ptr(),sizeof(torch::kU8)*cls_new.numel());
+    cv::resize(cls_img, cls_img, cv::Size2i(kIMAGE_WIDTH, kIMAGE_HEIGHT));
+
+    std::cout << aff_img.at<uchar>(320,240) << std::endl;
 
     cv::namedWindow("output data", cv::WINDOW_AUTOSIZE);
     cv::imshow("output data", aff_img);
