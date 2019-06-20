@@ -17,7 +17,7 @@ class Options:
         self.img_width = 640
         self.n_class = 3
         self.output_scale = 8
-        self.arch = 'resnet18'
+        self.arch = ''
 
 
 if __name__ == "__main__":
@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='resnet18', choices=model_choices,
+        '-a', '--arch', metavar='arch', required=True, choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
@@ -37,6 +37,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     options = Options()
+    options.arch = args.arch
     rslt_path = osp.join(options.proj_path, "result") if args.output_path == "" else args.output_path
     
     print("loading model...")
@@ -44,15 +45,15 @@ if __name__ == "__main__":
     checkpoint = torch.load(args.checkpoint)
     model.load_state_dict(checkpoint['model_state_dict'])
 
-    torch.save({
-        'epoch': checkpoint['epoch'],
-        'iteration': checkpoint['iteration'],
-        'arch': args.arch,
-        'optim_state_dict': checkpoint['optim_state_dict'],
-        'model_state_dict': checkpoint['model_state_dict'],
-        'best_mean_iu': checkpoint['best_mean_iu'],
-        'best_prec': checkpoint['best_prec'],
-    }, args.checkpoint)
+    # torch.save({
+    #     'epoch': checkpoint['epoch'],
+    #     'iteration': checkpoint['iteration'],
+    #     'arch': args.arch,
+    #     'optim_state_dict': checkpoint['optim_state_dict'],
+    #     'model_state_dict': checkpoint['model_state_dict'],
+    #     'best_mean_iu': checkpoint['best_mean_iu'],
+    #     'best_prec': checkpoint['best_prec'],
+    # }, args.checkpoint)
 
     # random input
     print("tracing model...")
@@ -61,5 +62,5 @@ if __name__ == "__main__":
 
     # generate a torch.jit.ScriptModule via tracing.
     traced_script_module = torch.jit.trace(model, (inp, inp))
-    traced_script_module.save(osp.join(rslt_path, "model_converted.pt"))
+    traced_script_module.save(osp.join(rslt_path, args.arch + "_converted.pt"))
     print("tracing done, model saved...")

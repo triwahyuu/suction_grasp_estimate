@@ -40,14 +40,14 @@ if __name__ == "__main__":
         'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
+        '--checkpoint', required=True, help='model path',
+    )
+    parser.add_argument(
         '-a', '--arch', metavar='arch', default='', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
-    )
-    parser.add_argument(
-        '--checkpoint', required=True, help='model path',
     )
     parser.add_argument(
         '--visualize', action='store_true', help='use amp on training',
@@ -66,9 +66,6 @@ if __name__ == "__main__":
         fig = plt.gcf()
         fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
         fig.canvas.set_window_title('Evaluation Result')
-        # fig, ax = plt.subplots(2,3)
-        # fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
-        # fig.canvas.set_window_title('Evaluation Result')
 
     ## prepare model
     checkpoint = torch.load(options.model_path)
@@ -161,7 +158,7 @@ if __name__ == "__main__":
     mean_time = np.mean(time_data)*1000
     print("\n\n    precision             recall               iou       ")
     print("%.16f  %.16f  %.16f" % (precision, recall, mean_iou))
-    print("average inference time: ", mean_time, "ms")
+    print("inference time: ", mean_time, "ms")
     print("max GPU memory: ", ave_mem/2**30, "GB")
 
     data = np.append(metrics_data, time_data, axis=1)
