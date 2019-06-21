@@ -1,6 +1,6 @@
 from vis_util import visualize
 from utils import prepare_input, post_process_output
-from models.model import build_model
+import models
 
 import os
 import argparse
@@ -58,7 +58,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     options = Options()
-    options.arch = args.arch if args.arch != '' else options.arch
     options.data_path = args.data_path if args.data_path != '' else options.data_path
     options.model_path = args.checkpoint
 
@@ -73,7 +72,7 @@ if __name__ == "__main__":
     ## prepare model
     checkpoint = torch.load(options.model_path)
     options.arch = args.arch if args.arch != '' else checkpoint['arch']
-    model = build_model(options.arch, options)
+    model = models.build_model(options.arch)
     model.eval()
     model.to(options.device)
     

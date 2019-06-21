@@ -362,6 +362,7 @@ class SuctionEffNetFCN(nn.Module):
 
 class SuctionEffNetPSP(nn.Module):
     def __init__(self, arch='pspeffnetb0', n_class=3, out_size=(480, 640)):
+        super(SuctionEffNetPSP, self).__init__()
         self.arch = arch
         self.n_class = n_class
         self.out_size = out_size
@@ -371,10 +372,10 @@ class SuctionEffNetPSP(nn.Module):
         out_sz = [1280, 1280, 1408, 1536, 1792, 2048]
         effnet_idx = int(arch[-1])
 
-        self.rgb_trunk = _load_resnet_trunk(self.backbone)
-        self.depth_trunk = _load_resnet_trunk(self.backbone)
+        self.rgb_trunk = _load_effnet_trunk(self.backbone)
+        self.depth_trunk = _load_effnet_trunk(self.backbone)
 
-        self.feature = PSPNet(n_classes=n_class, psp_size=out_sz[effnet_idx])
+        self.feature = PSPNet(n_classes=n_class, psp_size=out_sz[effnet_idx]*2)
         updatePadding(self.feature, nn.ReflectionPad2d)
     
     def forward(self, rgb_input, ddd_input):
@@ -395,7 +396,7 @@ def build_model(arch, n_class=3, out_size=(480, 640)):
         model = SuctionPSPNet(arch=arch, n_class=n_class, out_size=out_size)
     elif arch.startswith('fcneffnet'):
         model = SuctionEffNetFCN(arch=arch, n_class=n_class, out_size=out_size)
-    elif arch.startswith('fcneffnet'):
+    elif arch.startswith('pspeffnet'):
         model = SuctionEffNetPSP(arch=arch, n_class=n_class, out_size=out_size)
     elif arch in ['rfnet50', 'rfnet101', 'rfnet152']:
         model = SuctionRefineNetLW(arch=arch, n_class=n_class, out_size=out_size)

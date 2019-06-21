@@ -5,7 +5,7 @@ sys.path.append(osp.join('/'.join(osp.dirname(osp.abspath(__file__)).split('/')[
 
 import argparse
 import torch
-from models.model import build_model
+import models
 
 class Options:
     def __init__(self):
@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '-a', '--arch', metavar='arch', required=True, choices=model_choices,
+        '-a', '--arch', metavar='arch', default='', choices=model_choices,
         help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
     )
     parser.add_argument(
@@ -37,12 +37,13 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     options = Options()
-    options.arch = args.arch
+    
     rslt_path = osp.join(options.proj_path, "result") if args.output_path == "" else args.output_path
     
     print("loading model...")
-    model = build_model(args.arch, options)
     checkpoint = torch.load(args.checkpoint, map_location=torch.device('cpu'))
+    options.arch = args.arch if args.arch != '' else checkpoint['arch']
+    model = models.build_model(options.arch)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
@@ -62,5 +63,5 @@ if __name__ == "__main__":
 
     # generate a torch.jit.ScriptModule via tracing.
     traced_script_module = torch.jit.trace(model, (inp, inp))
-    traced_script_module.save(osp.join(rslt_path, args.arch + "_converted.pt"))
+    traced_script_module.save(osp.join(rslt_path, options.arch + "_converted.pt"))
     print("tracing done, model saved...")

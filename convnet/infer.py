@@ -2,7 +2,7 @@
 from vis_util import visualize
 from utils import prepare_input, post_process_output
 from vis_util import post_process
-from models.model import build_model
+import models
 
 import os
 import argparse
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     ## get model
     checkpoint = torch.load(options.model_path)
     options.arch = args.arch if args.arch != '' else checkpoint['arch']
-    model = build_model(options.arch, options)
+    model = models.build_model(options.arch)
     model.eval()
     model.to(options.device)
 
