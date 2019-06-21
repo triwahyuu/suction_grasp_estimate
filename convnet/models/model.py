@@ -100,7 +100,7 @@ class Interpolate(nn.Module):
         self.mode = mode
         
     def forward(self, x):
-        x = self.interp(x, scale_factor=self.scale, mode=self.mode, align_corners=True)
+        x = self.interp(x, scale_factor=self.scale, mode=self.mode)
         return x
 
 ## Suction Model with ResNet18 or ResNet34 backbone
@@ -117,7 +117,7 @@ class SuctionModel18(nn.Module):
             # nn.Threshold(0, 1e-6),
             nn.Dropout(0.4),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
-            Interpolate(scale=2, mode='bilinear')
+            nn.Upsample(scale_factor=16, mode='bilinear')
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
@@ -157,7 +157,7 @@ class SuctionModel50(nn.Module):
             nn.Conv2d(512, 128, kernel_size=(1,1), stride=(1,1)),
             nn.Dropout(0.4),
             nn.Conv2d(128, 3, kernel_size=(1,1), stride=(1,1)),
-            Interpolate(scale=2, mode='bilinear')
+            nn.Upsample(scale_factor=16, mode='bilinear')
         )
         updatePadding(self.feature, nn.ReflectionPad2d)
 
@@ -193,6 +193,7 @@ class SuctionPSPNet(nn.Module):
         self.depth_trunk = self._create_trunk()
 
         self.segment = PSPNet(n_classes=options.n_class, psp_size=self.psp_size)
+        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear')
         updatePadding(self.segment, nn.ReflectionPad2d)
 
     def forward(self, rgb_input, ddd_input):
@@ -203,7 +204,7 @@ class SuctionPSPNet(nn.Module):
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
         
         out = self.segment(rgbd_parallel)
-        return out
+        return self.upsample(out)
 
     def _create_trunk(self):
         resnet = resnet101(pretrained=True)
@@ -314,6 +315,7 @@ class SuctionBiSeNet(nn.Module):
         self.depth_spatial = SpatialPath()
         
         self.segment = BiSeNet(options.n_class, self.backbone)
+        self.upsample = nn.Upsample(size=(options.img_height, options.img_width), mode='bilinear')
         updatePadding(self.segment, nn.ReflectionPad2d)
     
     def forward(self, rgb_input, ddd_input):
@@ -332,7 +334,7 @@ class SuctionBiSeNet(nn.Module):
         rgbd_sx = torch.cat((rgb_sx, depth_sx), 1)
         
         out = self.segment(rgbd_sx, rgbd_cx1, rgbd_cx2, rgbd_tail)
-        return out
+        return self.upsample(out[0]), self.upsample(out[1]), self.upsample(out[2])
     
     def _create_trunk(self):
         m = build_contextpath(self.backbone)
