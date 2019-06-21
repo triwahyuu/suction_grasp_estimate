@@ -346,12 +346,33 @@ class SuctionICNet(nn.Module):
     def __init__(self, options):
         pass
     
-    def forward(self, rgbd_input):
+    def forward(self, rgb_input, ddd_input):
         pass
     
     def _create_trunk(self):
         pass
 
+
+class SuctionEffNetFCN(nn.Module):
+    def __init__(self, options):
+        pass
+    
+    def forward(self, rgb_input, ddd_input):
+        pass
+    
+    def _create_trunk(self):
+        pass
+
+
+class SuctionEffNetPSP(nn.Module):
+    def __init__(self, options):
+        pass
+    
+    def forward(self, rgb_input, ddd_input):
+        pass
+    
+    def _create_trunk(self):
+        pass
 
 
 def build_model(arch, options):
