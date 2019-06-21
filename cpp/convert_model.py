@@ -42,8 +42,9 @@ if __name__ == "__main__":
     
     print("loading model...")
     model = build_model(args.arch, options)
-    checkpoint = torch.load(args.checkpoint)
+    checkpoint = torch.load(args.checkpoint, map_location=torch.device('cpu'))
     model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
 
     # torch.save({
     #     'epoch': checkpoint['epoch'],
@@ -58,7 +59,6 @@ if __name__ == "__main__":
     # random input
     print("tracing model...")
     inp = torch.rand(1, 3, options.img_height, options.img_width)
-    example = [inp, inp]
 
     # generate a torch.jit.ScriptModule via tracing.
     traced_script_module = torch.jit.trace(model, (inp, inp))

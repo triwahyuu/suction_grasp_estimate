@@ -44,10 +44,12 @@ class ResNet(nn.Module):
         tail = torch.mean(tail, 2, keepdim=True)
         return feature3, feature4, tail
 
-def build_contextpath(arch):
-    model = None
-    if arch in ['resnet101', 'resnet50', 'resnet18', 'resnet34']:
-        model = ResNet(arch=arch)
+def _build_contextpath(model_name):
+    avail_resnet = [('resnet' + str(n)) for n in [18, 34, 50, 101]]
+    if model_name not in avail_resnet:
+        raise ValueError('BiseNet backend should be one of: ' + ', '.join(avail_resnet))
+    
+    model = ResNet(arch=model_name)
     return model
 
 class ConvBlock(nn.Module):

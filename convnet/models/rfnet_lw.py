@@ -173,7 +173,7 @@ class Bottleneck(nn.Module):
 
 class RefineNetLW(nn.Module):
 
-    def __init__(self, block, layers, num_classes=21):
+    def __init__(self, block, layers):
         self.inplanes = 64
         super(RefineNetLW, self).__init__()
         self.do = nn.Dropout(p=0.5)
@@ -202,9 +202,6 @@ class RefineNetLW(nn.Module):
         self.p_ims1d2_outl4_dimred = conv1x1(256, 256, bias=False)
         self.adapt_stage4_b2_joint_varout_dimred = conv1x1(256, 256, bias=False)
         self.mflow_conv_g4_pool = self._make_crp(256, 256, 4)
-
-        self.clf_conv = nn.Conv2d(256, num_classes, kernel_size=3, stride=1,
-                                  padding=1, bias=True)
 
     def _make_crp(self, in_planes, out_planes, stages):
         layers = [CRPBlock(in_planes, out_planes,stages)]
@@ -268,10 +265,7 @@ class RefineNetLW(nn.Module):
         x1 = x1 + x2
         x1 = F.relu(x1)
         x1 = self.mflow_conv_g4_pool(x1)
-
-        # out = self.clf_conv(x1)
-        out = x1
-        return out
+        return x1
 
 
 def maybe_download(model_url, model_dir=None, map_location=None):
@@ -299,24 +293,24 @@ models_urls = {
     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
 }
 
-def rfnet_lw50(num_classes, pretrained=True, **kwargs):
-    model = RefineNetLW(Bottleneck, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
+def rfnet_lw50(pretrained=True, **kwargs):
+    model = RefineNetLW(Bottleneck, [3, 4, 6, 3], **kwargs)
     if pretrained:
         key = 'resnet50'
         url = models_urls[key]
         model.load_state_dict(maybe_download(url), strict=False)
     return model
 
-def rfnet_lw101(num_classes, pretrained=True, **kwargs):
-    model = RefineNetLW(Bottleneck, [3, 4, 23, 3], num_classes=num_classes, **kwargs)
+def rfnet_lw101(pretrained=True, **kwargs):
+    model = RefineNetLW(Bottleneck, [3, 4, 23, 3], **kwargs)
     if pretrained:
         key = 'resnet101'
         url = models_urls[key]
         model.load_state_dict(maybe_download(url), strict=False)
     return model
 
-def rfnet_lw152(num_classes, pretrained=True, **kwargs):
-    model = RefineNetLW(Bottleneck, [3, 8, 36, 3], num_classes=num_classes, **kwargs)
+def rfnet_lw152(pretrained=True, **kwargs):
+    model = RefineNetLW(Bottleneck, [3, 8, 36, 3], **kwargs)
     if pretrained:
         key = 'resnet152'
         url = models_urls[key]

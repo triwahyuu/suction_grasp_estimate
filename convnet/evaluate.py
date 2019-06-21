@@ -94,9 +94,10 @@ if __name__ == "__main__":
         rgb_input, ddd_input = prepare_input(color_in, depth_in, options.device)
 
         ## forward pass
-        t = time.perf_counter()
-        output = model(rgb_input, ddd_input)
-        inf_time = time.perf_counter() - t
+        with torch.no_grad():
+            t = time.perf_counter()
+            output = model(rgb_input, ddd_input)
+            inf_time = time.perf_counter() - t
 
         t = time.perf_counter()
         # cls_pred, affordance_map = post_process_output(output, options)

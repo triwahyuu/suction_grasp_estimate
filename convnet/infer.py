@@ -78,12 +78,13 @@ if __name__ == "__main__":
 
     ## inference
     print('computing inference: ', input_file)
-    t = time.time()
-    output = model(rgb_input, ddd_input)
+    with torch.no_grad():
+        t = time.time()
+        output = model(rgb_input, ddd_input)
 
-    ## post-processing
-    cls_pred, affordance_map = post_process_output(output, options)
-    tm = time.time() - t
+        ## post-processing
+        cls_pred, affordance_map = post_process_output(output, options)
+        tm = time.time() - t
 
     affordance_img = (affordance_map * 255).astype(np.uint8)
     label_np = np.asarray(label, dtype=np.uint8)
