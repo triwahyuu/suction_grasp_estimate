@@ -96,10 +96,12 @@ def visualize(affordance_map, class_pred, color_input, surface_normals_map=None)
 
     cmap = cm.get_cmap('jet')
     affordance = cmap(affordance_map)[:,:,:-1] # ommit last channel (get rgb)
+    affordance[~class_pred.astype(np.bool)] = [0.0, 0.0, 0.0]
     img = affordance*0.5 + color_input*0.5
 
-    cmap_cls = cm.get_cmap('Paired')
-    cls_img = cmap_cls(class_pred)[:,:,:-1]
+    cls_img = np.zeros(class_pred.shape + (3,))
+    cls_img[class_pred.astype(np.bool)] = [1.0, 0.6314, 0.0]
+    cls_img[~class_pred.astype(np.bool)] = [0.0, 0.0, 0.0]
     cls_img = cls_img*0.5 + color_input*0.5
 
     ## best picking point

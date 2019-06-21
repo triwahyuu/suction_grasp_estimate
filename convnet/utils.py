@@ -29,8 +29,8 @@ def prepare_input(color, depth, device):
 
 
 def post_process_output(out_tensor, options):
-    cls_pred = np.squeeze(out_tensor.data.max(1)[1].cpu().numpy(), axis=0).astype(np.float64)
-    pred = np.squeeze(out_tensor.data.cpu().numpy(), axis=0)[1,:,:]
+    cls_pred = out_tensor.data.max(1)[1].cpu().numpy().squeeze(0)
+    pred = out_tensor.data.cpu().numpy().squeeze(0)[1]
 
     affordance = ((pred - pred.min()) / (pred.max() - pred.min()))
     affordance[~cls_pred.astype(np.bool)] = 0

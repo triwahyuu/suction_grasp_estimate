@@ -176,8 +176,8 @@ class SuctionPSPNet(nn.Module):
         self.rgb_trunk = _load_resnet_trunk(self.backbone)
         self.depth_trunk = _load_resnet_trunk(self.backbone)
 
-        self.feature = PSPNet(n_classes=n_class, psp_size=psp_size)
-        updatePadding(self.feature, nn.ReflectionPad2d)
+        self.segment = PSPNet(n_classes=n_class, psp_size=psp_size)
+        updatePadding(self.segment, nn.ReflectionPad2d)
 
     def forward(self, rgb_input, ddd_input):
         rgb_feature = self.rgb_trunk(rgb_input)
@@ -186,7 +186,7 @@ class SuctionPSPNet(nn.Module):
         # concatenate rgb and depth input
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
         
-        out = self.feature(rgbd_parallel)
+        out = self.segment(rgbd_parallel)
         return F.interpolate(out, size=self.out_size, mode='bilinear')
 
 

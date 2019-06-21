@@ -70,18 +70,17 @@ if __name__ == "__main__":
         fig.canvas.set_window_title('Evaluation Result')
 
     ## prepare model
+    print("== Loading model...")
     checkpoint = torch.load(options.model_path)
     options.arch = args.arch if args.arch != '' else checkpoint['arch']
     model = models.build_model(options.arch)
-    model.eval()
-    model.to(options.device)
-    
-    ## get model weight
     model.load_state_dict(checkpoint['model_state_dict'])
+    model.to(options.device).eval()
 
     test_img_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
     test_len = len(test_img_list)
 
+    print("== Start evaluating...")
     metrics_data = np.zeros((test_len, 5), dtype=np.int64)  # [tp, tn, fp, fn, memory]
     time_data = np.zeros((test_len,2), dtype=np.float64)    # [inference, post-processing]
     for n, input_path in enumerate(test_img_list):
@@ -98,17 +97,16 @@ if __name__ == "__main__":
             output = model(rgb_input, ddd_input)
             inf_time = time.perf_counter() - t
 
-        t = time.perf_counter()
-        # cls_pred, affordance_map = post_process_output(output, options)
-        cls_pred = np.squeeze(output.data.max(1)[1].cpu().numpy(), axis=0)
-        ## get the first channel -> the probability of success
-        pred = np.squeeze(output.data.cpu().numpy(), axis=0)[1]
+            t = time.perf_counter()
+            cls_pred = output.data.argmax(1).cpu().numpy().squeeze(0)
+            ## get the first channel -> the probability of success
+            pred = output.data.cpu().numpy().squeeze(0)[1]
 
-        affordance_map = ((pred - pred.min()) / (pred.max() - pred.min()))
-        affordance_map[~cls_pred.astype(np.bool)] = 0
-        # affordance_map = gaussian_filter(affordance_map, 4)
-        post_time = time.perf_counter() - t
-        time_data[n,:] = np.array([inf_time, post_time], dtype=np.float32)
+            affordance_map = ((pred - pred.min()) / (pred.max() - pred.min()))
+            affordance_map[~cls_pred.astype(np.bool)] = 0
+            # affordance_map = gaussian_filter(affordance_map, 4)
+            post_time = time.perf_counter() - t
+            time_data[n,:] = np.array([inf_time, post_time], dtype=np.float32)
 
         color_in = np.asarray(color_in, dtype=np.float64) / 255
 
