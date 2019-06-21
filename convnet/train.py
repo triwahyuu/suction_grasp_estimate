@@ -501,7 +501,7 @@ if __name__ == "__main__":
     if args.resume != '':
         checkpoint = torch.load(args.resume)
         model.load_state_dict(checkpoint['model_state_dict'])
-        start_epoch = checkpoint['epoch']
+        start_epoch = checkpoint['epoch'] + 1
         start_iteration = checkpoint['iteration']
         if 'rfnet' in args.arch:
             optim_enc.load_state_dict(checkpoint['optim_state_dict'])
@@ -525,7 +525,7 @@ if __name__ == "__main__":
         train_loader=train_loader, val_loader=val_loader, arch=args.arch,
         output_path=os.path.join(result_path, now), log_path=result_path,
         max_epoch=args.max_epoch, cuda=(not args.use_cpu), use_amp=args.use_amp,
-        loss_params=loss_params)
+        lr_scheduler=scheduler, loss_params=loss_params)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     if args.resume != '':
