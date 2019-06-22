@@ -4,14 +4,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models
+
+import math
+import numbers
+
 from .rfnet import rfnet101, rfnet50
 from .rfnet_lw import rfnet_lw101, rfnet_lw50
 from .pspnet import PSPNet
 from .bisenet import BiSeNet, SpatialPath, _build_contextpath
 from .efficientnet import efficientnet
 
-## source:
-# https://github.com/foolwood/deepmask-pytorch/blob/master/models/DeepMask.py
+
+
+## https://github.com/foolwood/deepmask-pytorch/blob/master/models/DeepMask.py
 class SymmetricPad2d(nn.Module):
     def __init__(self, padding):
         super(SymmetricPad2d, self).__init__()
@@ -94,6 +99,76 @@ def updatePadding(net, nn_padding):
     return -1
 
 
+## https://discuss.pytorch.org/t/is-there-anyway-to-do-gaussian-filtering-for-an-image-2d-3d-in-pytorch/12351/10
+class GaussianSmoothing(nn.Module):
+    """
+    Apply gaussian smoothing on a
+    1d, 2d or 3d tensor. Filtering is performed seperately for each channel
+    in the input using a depthwise convolution.
+    Arguments:
+        channels (int, sequence): Number of channels of the input tensors. Output will
+            have this number of channels as well.
+        kernel_size (int, sequence): Size of the gaussian kernel.
+        sigma (float, sequence): Standard deviation of the gaussian kernel.
+        dim (int, optional): The number of dimensions of the data.
+            Default value is 2 (spatial).
+    """
+    def __init__(self, channels, kernel_size, sigma, dim=2):
+        super(GaussianSmoothing, self).__init__()
+
+        self.k = kernel_size
+        if isinstance(kernel_size, numbers.Number):
+            kernel_size = [kernel_size] * dim
+        if isinstance(sigma, numbers.Number):
+            sigma = [sigma] * dim
+
+        # The gaussian kernel is the product of the
+        # gaussian function of each dimension.
+        kernel = 1
+        meshgrids = torch.meshgrid(
+            [
+                torch.arange(size, dtype=torch.float32)
+                for size in kernel_size
+            ]
+        )
+        for size, std, mgrid in zip(kernel_size, sigma, meshgrids):
+            mean = (size - 1) / 2
+            kernel *= 1 / (std * math.sqrt(2 * math.pi)) * \
+                      torch.exp(-((mgrid - mean) / std) ** 2 / 2)
+
+        # Make sure sum of values in gaussian kernel equals 1.
+        kernel = kernel / torch.sum(kernel)
+
+        # Reshape to depthwise convolutional weight
+        kernel = kernel.view(1, 1, *kernel.size())
+        kernel = kernel.repeat(channels, *[1] * (kernel.dim() - 1))
+
+        self.register_buffer('weight', kernel)
+        self.groups = channels
+        self._parameters.requires_grad = False
+
+        if dim == 1:
+            self.conv = F.conv1d
+        elif dim == 2:
+            self.conv = F.conv2d
+        elif dim == 3:
+            self.conv = F.conv3d
+        else:
+            raise RuntimeError(
+                'Only 1, 2 and 3 dimensions are supported. Received {}.'.format(dim)
+            )
+
+    def forward(self, input):
+        """
+        Apply gaussian filter to input.
+        Arguments:
+            input (torch.Tensor): Input to apply gaussian filter on.
+        Returns:
+            filtered (torch.Tensor): Filtered output.
+        """
+        return self.conv(input, weight=self.weight, groups=self.groups)
+
+
 def _load_resnet_trunk(model_name):
     avail_resnet = [('resnet' + str(n)) for n in [18, 34, 50, 101, 152]]
     if model_name not in avail_resnet:
@@ -148,6 +223,7 @@ class SuctionModelFCN(nn.Module):
                 nn.Conv2d(128, n_class, kernel_size=(1,1), stride=(1,1))
             )
         updatePadding(self.feature, nn.ReflectionPad2d)
+        self.blur = GaussianSmoothing(channels=3, kernel_size=5, sigma=7)
 
     def forward(self, rgb_input, ddd_input):
         rgb_feature = self.rgb_trunk(rgb_input)
@@ -157,7 +233,8 @@ class SuctionModelFCN(nn.Module):
         rgbd_parallel = torch.cat((rgb_feature, depth_feature), 1)
 
         out = self.feature(rgbd_parallel)
-        return F.interpolate(out, size=self.out_size, mode='bilinear')
+        out = F.interpolate(out, size=self.out_size, mode='bilinear')
+        return self.blur(F.pad(out, (self.blur.k//2, )*4, mode='reflect'))
 
 
 ## Suction Model with ResNet backbone and PSPNet as feature map
