@@ -98,9 +98,9 @@ if __name__ == "__main__":
             inf_time = time.perf_counter() - t
 
             t = time.perf_counter()
-            cls_pred = output.data.argmax(1).cpu().numpy().squeeze(0)
+            cls_pred = output.data.argmax(1).detach().cpu().numpy().squeeze(0)
             ## get the first channel -> the probability of success
-            pred = output.data.cpu().numpy().squeeze(0)[1]
+            pred = output.data.detach().cpu().numpy().squeeze(0)[1]
 
             affordance_map = ((pred - pred.min()) / (pred.max() - pred.min()))
             affordance_map[~cls_pred.astype(np.bool)] = 0

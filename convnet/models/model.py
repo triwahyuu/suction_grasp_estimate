@@ -464,23 +464,3 @@ class SuctionEffNetPSP(nn.Module):
         
         out = self.feature(rgbd_parallel)
         return F.interpolate(out, size=self.out_size, mode='bilinear')
-
-
-def build_model(arch, n_class=3, out_size=(480, 640)):
-    if arch.startswith('resnet'):
-        model = SuctionModelFCN(arch=arch, n_class=n_class, out_size=out_size)
-    elif arch.startswith('pspnet'):
-        model = SuctionPSPNet(arch=arch, n_class=n_class, out_size=out_size)
-    elif arch.startswith('fcneffnet'):
-        model = SuctionEffNetFCN(arch=arch, n_class=n_class, out_size=out_size)
-    elif arch.startswith('pspeffnet'):
-        model = SuctionEffNetPSP(arch=arch, n_class=n_class, out_size=out_size)
-    elif arch in ['rfnet50', 'rfnet101', 'rfnet152']:
-        model = SuctionRefineNetLW(arch=arch, n_class=n_class, out_size=out_size)
-    elif arch.startswith('bisenet'):
-        model = SuctionBiSeNet(arch=arch, n_class=n_class, out_size=out_size)
-    elif arch.startswith('icnet'):
-        model = SuctionICNet(arch=arch, n_class=n_class, out_size=out_size)
-    else:
-        raise Exception('Error: model %s is not supported' % (arch))
-    return model

@@ -185,8 +185,7 @@ class Trainer(object):
                 
                 loss = self.criterion(output, target)
                 loss_data = loss.data.item()
-                if 'bisenet' in self.arch:
-                    nn.utils.clip_grad_norm_(self.model.parameters(), 0.25)
+                
                 if np.isnan(loss_data):
                     raise ValueError('loss is nan while validating')
                 val_loss += loss_data / len(rgb_img)
@@ -325,7 +324,9 @@ class Trainer(object):
                     scaled_loss.backward()
             else:
                 loss.backward()
-                
+            
+            if self.arch.startswith('bisenet') or 'effnet' in self.arch:
+                nn.utils.clip_grad_norm_(self.model.parameters(), 0.25)
             self.optim.step()
             if self.arch.startswith('rfnet'):
                 self.optim_dec.step()
