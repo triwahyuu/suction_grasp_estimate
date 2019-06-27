@@ -378,7 +378,11 @@ class SuctionBiSeNet(nn.Module):
         rgbd_sx = torch.cat((rgb_sx, depth_sx), 1)
         
         out = self.feature(rgbd_sx, rgbd_cx1, rgbd_cx2, rgbd_tail)
-        return self.upsample(out[0]), self.upsample(out[1]), self.upsample(out[2])
+        
+        if self.training:
+            return self.upsample(out[0]), self.upsample(out[1]), self.upsample(out[2])
+        
+        return self.upsample(out)
     
     def _create_trunk(self):
         m = _build_contextpath(self.backbone)

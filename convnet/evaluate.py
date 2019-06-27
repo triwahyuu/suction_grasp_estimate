@@ -165,7 +165,9 @@ if __name__ == "__main__":
     precision = s[0]/(s[0]+s[2])
     recall = s[0]/(s[0]+s[3])
     mean_iou = s[0]/(s[0]+s[2]+s[3])
-    mean_time = np.mean(time_data, axis=0)*1000
+
+    time_data_new = np.delete(time_data, 0, axis=0) # delete first row, usually outliers
+    mean_time = np.mean(time_data_new, axis=0)*1000
     print("\n\n    precision             recall               iou       ")
     print("%.16f  %.16f  %.16f" % (precision, recall, mean_iou))
     print("average time:\t", mean_time[0], "ms  ", mean_time[1], "ms")
