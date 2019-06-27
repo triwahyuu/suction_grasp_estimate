@@ -13,15 +13,10 @@ warnings.filterwarnings(action='ignore')
 class ResNet(nn.Module):
     def __init__(self, arch='resnet18',pretrained=True):
         super().__init__()
-        features = None
-        if arch == 'resnet18':
-            features = models.resnet18(pretrained=pretrained)
-        elif arch == 'resnet34':
-            features = models.resnet34(pretrained=pretrained)
-        elif arch == 'resnet50':
-            features = models.resnet50(pretrained=pretrained)
-        elif arch == 'resnet101':
-            features = models.resnet101(pretrained=pretrained)
+
+        _resnet = getattr(models, arch)
+        features = _resnet(pretrained=pretrained)
+        
         self.conv1 = features.conv1
         self.bn1 = features.bn1
         self.relu = features.relu
