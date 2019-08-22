@@ -39,15 +39,13 @@ class Options(object):
         self.visualize = False # don't visualize it, there is a memory bug on matplotlib
 
 if __name__ == "__main__":
-    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
-        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--checkpoint', required=True, help='model path',
     )
     parser.add_argument(
-        '-a', '--arch', metavar='arch', default='', choices=model_choices,
-        help='model architecture: ' + ' | '.join(model_choices) + ' (default: resnet18)'
+        '-a', '--arch', metavar='arch', default='', choices=models.available_model,
+        help='model architecture: ' + ' | '.join(models.available_model) + ' (default: resnet18)'
     )
     parser.add_argument(
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
