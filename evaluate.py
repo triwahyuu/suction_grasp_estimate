@@ -39,8 +39,7 @@ class Options(object):
         self.visualize = False # don't visualize it, there is a memory bug on matplotlib
 
 if __name__ == "__main__":
-    model_choices = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152',
-        'rfnet50', 'rfnet101', 'rfnet152', 'pspnet50', 'pspnet101', 'pspnet18', 'pspnet34']
+    model_choices = models.available_model
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--checkpoint', required=True, help='model path',
