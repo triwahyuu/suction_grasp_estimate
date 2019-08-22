@@ -47,7 +47,7 @@ cudnn.enabled = True
 
 class Options:
     def __init__(self):
-        p = osp.dirname(osp.abspath(__file__)).split('/')[:-1]
+        p = osp.dirname(osp.abspath(__file__)).split('/')
         self.proj_path = '/'.join(p)
         self.data_path = osp.join('/'.join(p[:-1]), 'dataset/')
         self.sample_path = osp.join(self.data_path, 'train-split.txt')
@@ -201,7 +201,6 @@ class Trainer(object):
         val_prec = prec/len(self.val_loader)
 
         with open(osp.join(self.output_path, 'log.csv'), 'a') as f:
-            
             metrics_str = ['%.10f' %(a) for a in list(metrics)]
             elapsed_time = (
                 datetime.datetime.now(pytz.timezone('Asia/Jakarta')) -
@@ -433,7 +432,8 @@ if __name__ == "__main__":
         options.sample_path = os.path.join(args.data_path, 'train-split.txt')
 
     ## prepare model
-    model = models.build_model(args.arch)
+    print("Training %s" % (options.arch))
+    model = models.build_model(options.arch)
     model.apply(BNtoFixed)
     model.to(device)
 
@@ -514,9 +514,10 @@ if __name__ == "__main__":
 
     ## the main deal
     trainer = Trainer(model=model, optimizers=optimizer, loss=criterion,
-        train_loader=train_loader, val_loader=val_loader, arch=args.arch,
-        output_path=os.path.join(result_path, now), log_path=result_path,
-        max_epoch=args.max_epoch, cuda=(not args.use_cpu), use_amp=args.use_amp,
+        train_loader=train_loader, val_loader=val_loader, arch=options.arch,
+        output_path=os.path.join(result_path, options.arch, now), 
+        log_path=os.path.join(result_path, options.arch), max_epoch=args.max_epoch, 
+        cuda=(not args.use_cpu), use_amp=args.use_amp,
         lr_scheduler=scheduler, loss_params=loss_params)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
