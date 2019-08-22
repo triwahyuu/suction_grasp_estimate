@@ -12,18 +12,17 @@ available_model = [] + \
     # 'icnet18', 'icnet34', 'icnet50', 'icnet101',
     # 'rfnet50', 'rfnet101', 'rfnet152', 
 
-arch2class_map = {
-    'resnet': 'SuctionModelFCN',
-    'pspnet': 'SuctionPSPNet',
-    'bisenet' : 'SuctionBiSeNet',
-    'icnet' : 'SuctionICNet',
-    'fcneffnetb' : 'SuctionEffNetFCN',
-    'pspeffnetb' : 'SuctionEffNetPSP',
-    'rfnet' : 'SuctionRefineNetLW'
-}
-
 def build_model(arch, n_class=3, out_size=(480, 640)):
     arch_nodigit = ''.join([a for a in arch if not a.isdigit()])
+    arch2class_map = {
+        'resnet': 'SuctionModelFCN',
+        'pspnet': 'SuctionPSPNet',
+        'bisenet' : 'SuctionBiSeNet',
+        'icnet' : 'SuctionICNet',
+        'fcneffnetb' : 'SuctionEffNetFCN',
+        'pspeffnetb' : 'SuctionEffNetPSP',
+        'rfnet' : 'SuctionRefineNetLW'
+    }
     try:
         module = getattr(models.model, arch2class_map[arch_nodigit])
     except KeyError:

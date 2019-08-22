@@ -235,6 +235,7 @@ class SuctionModelFCN(nn.Module):
         out = self.feature(rgbd_parallel)
         out = F.interpolate(out, size=self.out_size, mode='bilinear')
         return self.blur(F.pad(out, (self.blur.k//2, )*4, mode='reflect'))
+        # return out
 
 
 ## Suction Model with ResNet backbone and PSPNet as feature map

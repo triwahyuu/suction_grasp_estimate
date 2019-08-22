@@ -324,7 +324,7 @@ class Trainer(object):
             else:
                 loss.backward()
             
-            if self.arch.startswith('bisenet') or 'effnet' in self.arch:
+            if self.arch.startswith('bisenet') or ('effnet' in self.arch):
                 nn.utils.clip_grad_norm_(self.model.parameters(), 0.25)
             self.optim.step()
             if self.arch.startswith('rfnet'):
