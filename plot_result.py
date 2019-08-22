@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
 
     file_path = os.path.dirname(os.path.abspath(__file__))
-    result_path = os.path.join('/'.join(file_path.split('/')[:-1]), 'result')
+    result_path = os.path.join('/'.join(file_path.split('/')), 'result')
     result_path = args.result_path if args.result_path else result_path
     ave_const = 735 ## average each epoch
 

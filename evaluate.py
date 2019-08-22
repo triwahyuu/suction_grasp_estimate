@@ -25,7 +25,7 @@ cudnn.enabled = True
 
 class Options(object):
     def __init__(self):
-        p = os.path.dirname(os.path.abspath(__file__)).split('/')[:-1]
+        p = os.path.dirname(os.path.abspath(__file__)).split('/')
         self.proj_path = '/'.join(p)
         self.data_path = os.path.join('/'.join(p[:-1]), 'dataset/')
         self.test_img_path = os.path.join(self.data_path, 'test-split.txt')
