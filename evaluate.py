@@ -51,7 +51,7 @@ if __name__ == "__main__":
         '--datapath', dest='data_path', default='', help='suction grasp dataset path',
     )
     parser.add_argument(
-        '--visualize', action='store_true', help='use amp on training',
+        '--visualize', action='store_true', help='visualize result (pls don\'t use this)',
     )
     args = parser.parse_args()
 
@@ -127,7 +127,7 @@ if __name__ == "__main__":
         torch.cuda.reset_max_memory_allocated()
 
         ## visualize
-        if options.visualize:
+        if args.visualize:
             cmap = cm.get_cmap('jet')
             affordance_color = cmap(affordance_map)[:,:,:-1] # ommit last channel (get rgb)
             affordance_viz = affordance_color*0.5 + color_in*0.5

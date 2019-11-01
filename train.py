@@ -99,13 +99,13 @@ class Trainer(object):
         self.val_loader = val_loader
 
         ## criterion
-        self.alphas = None
+        self.alphas = [1, 1]
         self.lambdas = None
         if 'bisenet' in self.arch:
             self.criterion = loss[0].cuda() if self.cuda else loss[0]
             self.crit_aux1 = loss[1].cuda() if self.cuda else loss[1]
             self.crit_aux2 = loss[2].cuda() if self.cuda else loss[2]
-            self.alphas = kwargs['loss_params']
+            # self.alphas = kwargs['loss_params']
         elif 'icnet' in self.arch:
             self.criterion = loss[2].cuda() if self.cuda else loss[2]
             self.crit_sub24 = loss[1].cuda() if self.cuda else loss[1]
