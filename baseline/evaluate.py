@@ -30,7 +30,9 @@ def evaluate(log_name, settings=[0.3, 0.02, 0.1], visualize=False, save_result=F
 
     result = np.zeros((len(sample_list), 5))
     settings = list(map(lambda x: round(x, 2), settings))
-    for n,fname in tqdm.tqdm(enumerate(sample_list), total=len(sample_list), desc='Processing', ncols=80):
+
+    for n,fname in tqdm.tqdm(enumerate(sample_list), 
+            total=len(sample_list), desc='Processing', ncols=80):
         ## load the datasets
         rgb_in = Image.open(osp.join(data_path, "color-input/", fname + '.png'))
         rgb_bg = Image.open(osp.join(data_path, "color-background/", fname + '.png'))
@@ -62,12 +64,13 @@ def evaluate(log_name, settings=[0.3, 0.02, 0.1], visualize=False, save_result=F
         sum_tn = np.sum(np.logical_and((score <= threshold), (label_np == 0)).astype(np.int))
         sum_fn = np.sum(np.logical_and((score <= threshold), (label_np == 128)).astype(np.int))
         
-        result[n,:] = [sum_tp, sum_fp, sum_tn, sum_fn, tm]
+        result[n] = [sum_tp, sum_fp, sum_tn, sum_fn, tm]
         
-        with open(osp.join('result/', log_name), 'a') as f:
+        with open(log_name, 'a') as f:
             precision = 0 if (sum_tp + sum_fp) == 0 else sum_tp/(sum_tp + sum_fp)
             recall = 0 if (sum_tp + sum_fn) == 0 else sum_tp/(sum_tp + sum_fn)
-            res_str = [fname, "%.8f"%(precision), "%.8f"%(recall), sum_tp, sum_fp, sum_tn, sum_fn, "%.8f"%(tm)]
+            res_str = [fname, "%.8f"%(precision), "%.8f"%(recall), \
+                sum_tp, sum_fp, sum_tn, sum_fn, "%.8f"%(tm)]
             f.write(','.join(map(str, res_str)) + '\n')
 
         ## visualize
