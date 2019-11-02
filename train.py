@@ -79,7 +79,7 @@ class Trainer(object):
     def __init__(self, model, optimizers, loss, train_loader, val_loader, 
                  output_path, log_path, max_epoch=200, max_iter=None, arch='resnet18',
                  cuda=True, interval_validate=None, freeze_bn=True, use_amp=False, 
-                 lr_scheduler=None, **kwargs):
+                 lr_scheduler=None, loss_params=None):
         self.cuda = cuda
 
         self.model = model
@@ -99,18 +99,17 @@ class Trainer(object):
         self.val_loader = val_loader
 
         ## criterion
-        self.alphas = [1, 1]
         self.lambdas = None
         if 'bisenet' in self.arch:
             self.criterion = loss[0].cuda() if self.cuda else loss[0]
             self.crit_aux1 = loss[1].cuda() if self.cuda else loss[1]
             self.crit_aux2 = loss[2].cuda() if self.cuda else loss[2]
-            # self.alphas = kwargs['loss_params']
+            self.alphas = loss_params if loss_params != None else [1, 1]
         elif 'icnet' in self.arch:
             self.criterion = loss[2].cuda() if self.cuda else loss[2]
             self.crit_sub24 = loss[1].cuda() if self.cuda else loss[1]
             self.crit_sub4 = loss[0].cuda() if self.cuda else loss[0]
-            self.lambdas = kwargs['loss_params']
+            self.lambdas = loss_params if loss_params != None else [0.16, 0.4, 1.0]
         else:
             self.criterion = loss.cuda() if self.cuda else loss
 
