@@ -1,8 +1,9 @@
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
 **/*.txt
 **/test.py
+
+!baseline/experiment-*.txt
 
 # c++ stuff
 !cpp/*.txt

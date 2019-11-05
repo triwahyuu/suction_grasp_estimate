@@ -43,20 +43,17 @@ def calc_metric(prediction, target, threshold):
 ## take the inputs of PIL image and the camera intrinsic matrix in numpy
 ## settings: [color_frg_threshold, depth_frg_threshold, normal_radius]
 def predict(color_input, color_bg, depth_input, depth_bg, camera_intrinsic, settings=[0.3, 0.02, 0.1]):
-    # print(time.time())
     ## scale the images to the proper value
     color_input = np.asarray(color_input, dtype=np.float32) / 255
     color_bg = np.asarray(color_bg, dtype=np.float32) / 255
     depth_input = np.asarray(depth_input, dtype=np.float64) / 10000
     depth_bg = np.asarray(depth_bg, dtype=np.float64) / 10000
 
-    # print(time.time())
     ## get foreground mask
     frg_mask_color = ~(np.sum(abs(color_input-color_bg) < settings[0], axis=2) == 3)
     frg_mask_depth = np.logical_and((abs(depth_input-depth_bg) > settings[1]), (depth_bg != 0))
     foreground_mask = np.logical_or(frg_mask_color, frg_mask_depth)
 
-    # print(time.time())
     ## project depth to camera space
     pix_x, pix_y = np.meshgrid(np.arange(640), np.arange(480))
     cam_x = (pix_x - camera_intrinsic[0][2]) * depth_input/camera_intrinsic[0][0]
@@ -66,18 +63,15 @@ def predict(color_input, color_bg, depth_input, depth_bg, camera_intrinsic, sett
     depth_valid = (np.logical_and(foreground_mask, cam_z) != 0)
     input_points = np.array([cam_x[depth_valid], cam_y[depth_valid], cam_z[depth_valid]]).transpose()
 
-    # print(time.time())
     ## get the foreground point cloud
     pcd = open3d.PointCloud()
     pcd.points = open3d.Vector3dVector(input_points)
     open3d.estimate_normals(pcd, search_param=open3d.KDTreeSearchParamHybrid(radius=settings[2], max_nn=100))
     
-    # print(time.time())
     ## flip normals to point towards sensor
     open3d.geometry.orient_normals_towards_camera_location(pcd, [0,0,0])
     pcd_normals = np.asarray(pcd.normals)
 
-    # print(time.time())
     ## reproject the normals back to image plane
     pix_x = np.round((input_points[:,0] * camera_intrinsic[0][0] / input_points[:,2] + camera_intrinsic[0][2]))
     pix_y = np.round((input_points[:,1] * camera_intrinsic[1][1] / input_points[:,2] + camera_intrinsic[1][2]))
@@ -86,7 +80,6 @@ def predict(color_input, color_bg, depth_input, depth_bg, camera_intrinsic, sett
     for n, (x,y) in enumerate(zip(pix_x, pix_y)):
         surface_normals_map[int(y),int(x)] = pcd_normals[n]
     
-    # print(time.time())
     ## Compute standard deviation of local normals
     mean_std_norms = np.mean(stdev_filter(surface_normals_map, 25), axis=2)
     affordance_map = 1 - mean_std_norms/mean_std_norms.max()
