@@ -91,7 +91,7 @@ def post_process(affordance_map, class_pred,
 
 ## predict the affordance map and surface normal map
 ## take the inputs of PIL image and the camera intrinsic matrix in numpy
-def visualize(affordance_map, class_pred, color_input, surface_normals_map=None):
+def visualize(affordance_map, class_pred, color_input, surface_normals_map=None, label=None):
     color_input = np.asarray(color_input, dtype=np.float64) / 255
 
     cmap = cm.get_cmap('jet')
@@ -105,8 +105,7 @@ def visualize(affordance_map, class_pred, color_input, surface_normals_map=None)
     cls_img = cls_img*0.5 + color_input*0.5
 
     ## best picking point
-    max_point = np.argmax(affordance_map)
-    max_point = (max_point//affordance.shape[1], max_point%affordance.shape[1])
+    max_point = np.unravel_index(affordance_map.argmax(), affordance_map.shape)
     max_circ = patches.Circle(np.flip(max_point), radius=8, fill=False, linewidth=4.0, color='k')
 
     ## class prediction
@@ -133,6 +132,13 @@ def visualize(affordance_map, class_pred, color_input, surface_normals_map=None)
         fig2.canvas.set_window_title('Surface Normals')
         ax2.imshow(surface_normals_map)
         ax2.set_axis_off()
+    
+    if label is not None:
+        fig3, ax3 = plt.subplots()
+        fig3.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
+        fig3.canvas.set_window_title('Label')
+        ax3.imshow(label)
+        ax3.set_axis_off()
 
     plt.show()
 

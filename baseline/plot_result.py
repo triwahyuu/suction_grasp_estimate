@@ -25,14 +25,16 @@ prec_thres_data = np.array(list(map(float, thresexp_np[:,1])))*100
 recall_thres_data = np.array(list(map(float, thresexp_np[:,2])))*100
 thres_col = np.array(list(map(float, thresexp_np[:,4])))
 thres_dep = np.array(list(map(float, thresexp_np[:,5])))
+max_idx = np.argmax(prec_thres_data)
+print("(%.2f %.2f): %.8f" % (thres_col[max_idx], thres_dep[max_idx], np.max(prec_thres_data)))
 
 
 plt.plot(rad, prec_rad_data)
-plt.title("The Effect of Local Surface Normal Radius on Accuracy")
+plt.title("The Effect of Local Surface Normal Radius on Precision")
 plt.xticks(rad)
 plt.yticks(np.arange(56.5, 57.2, 0.1))
 plt.xlabel("Radius (cm)")
-plt.ylabel("Accuracy (%)")
+plt.ylabel("Precision (%)")
 # plt.savefig("result/plt.png")
 
 
@@ -42,9 +44,9 @@ plt.figure()
 plt.plot(x_thres_dep, y_prec_dep)
 plt.xticks(x_thres_dep)
 plt.yticks(np.arange(56.0, 57.4, 0.2))
-plt.title("The Effect of Depth Threshold on Accuracy")
+plt.title("The Effect of Depth Threshold on Precision")
 plt.xlabel("Threshold")
-plt.ylabel("Accuracy (%)")
+plt.ylabel("Precision (%)")
 
 
 y_prec_col = prec_thres_data[thres_dep == 0.11]
@@ -53,14 +55,14 @@ plt.figure()
 plt.plot(x_thres_col, y_prec_col)
 plt.xticks(x_thres_col)
 # plt.yticks(np.arange(56.0, 57.4, 0.2))
-plt.title("The Effect of Color Threshold on Accuracy")
+plt.title("The Effect of Color Threshold on Precision")
 plt.xlabel("Threshold")
-plt.ylabel("Accuracy (%)")
+plt.ylabel("Precision (%)")
 
 
 plt.figure()
 ax = plt.axes(projection='3d')
-ax.set_title("The Effect of Color Threshold on Accuracy")
+ax.set_title("The Effect of Threshold Value on Precision")
 for v in np.arange(0.15, 0.50, 0.05):
     v = round(v, 2)
     ax.plot3D(thres_col[thres_col == v], thres_dep[thres_col == v], prec_thres_data[thres_col == v])

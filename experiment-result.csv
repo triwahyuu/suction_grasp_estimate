@@ -1,0 +1,16 @@
+Backbone,Segmentation,precision (%),sensitivity (%),time (ms),size (GB)
+ResNet18,FCN,85.33,14.51,18.88,121.28
+ResNet50,,87.05,14.91,52.63,292.14
+ResNet101,,88.27,15.57,87.31,727.30
+EfficientNet-b0,,75.53,10.44,27.69,169.57
+EfficientNet-b1,,,,,
+EfficientNet-b4,,86.12,13.85,65.05,562.94
+ResNet18,PSPNet,86.50,14.86,27.54,956.01
+ResNet50,,,,,
+ResNet101,,88.83,14.69,102.32,1097.12
+EfficientNet-b0,,71.66,6.34,33.42,648.43
+EfficientNet-b1,,85.94,14.53,39.96,708.06
+EfficientNet-b3,,87.25,13.70,46.13,970.59
+ResNet18,BiSeNet,82.18,9.14,7.78,431.18
+ResNet50,,88.45,15.12,29.80,1225.93
+ResNet101,,,,,

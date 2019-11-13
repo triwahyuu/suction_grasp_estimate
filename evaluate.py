@@ -81,12 +81,13 @@ if __name__ == "__main__":
     print("== Start evaluating...")
     metrics_data = np.zeros((test_len, 5), dtype=np.int64)  # [tp, tn, fp, fn, memory]
     time_data = np.zeros((test_len,2), dtype=np.float64)    # [inference, post-processing]
-    for n, input_path in enumerate(test_img_list):
-        print(input_path, "%d/%d: " % (n, test_len), end='')
+    failed = []
+    for n, fname in enumerate(test_img_list):
+        print(fname, "%d/%d: " % (n, test_len), end='')
         
-        color_in = Image.open(os.path.join(options.data_path, 'color-input', input_path + '.png'))
-        depth_in = Image.open(os.path.join(options.data_path, 'depth-input', input_path + '.png'))
-        label = Image.open(os.path.join(options.data_path, 'label', input_path + '.png'))
+        color_in = Image.open(os.path.join(options.data_path, 'color-input', fname + '.png'))
+        depth_in = Image.open(os.path.join(options.data_path, 'depth-input', fname + '.png'))
+        label = Image.open(os.path.join(options.data_path, 'label', fname + '.png'))
         rgb_input, ddd_input = prepare_input(color_in, depth_in, options.device)
 
         ## forward pass
@@ -101,7 +102,7 @@ if __name__ == "__main__":
             pred = output.data.detach().cpu().numpy().squeeze(0)[1]
 
             affordance_map = ((pred - pred.min()) / (pred.max() - pred.min()))
-            affordance_map[~cls_pred.astype(np.bool)] = 0
+            affordance_map[cls_pred.astype(np.bool) != 1] = 0
             # affordance_map = gaussian_filter(affordance_map, 4)
             post_time = time.perf_counter() - t
             time_data[n,:] = np.array([inf_time, post_time], dtype=np.float32)
@@ -118,12 +119,16 @@ if __name__ == "__main__":
         tn = np.sum(np.logical_and((affordance_img <= threshold), (label_np == 0)).astype(np.int))
         fn = np.sum(np.logical_and((affordance_img <= threshold), (label_np == 128)).astype(np.int))
 
+        max_point = np.unravel_index(affordance_map.argmax(), affordance_map.shape)
+        if(label_np[max_point] != 128):
+            failed.append(fname)
+
         precision = tp/(tp + fp) if (tp + fp) != 0 else 0
         recall = tp/(tp + fn) if (tp + fn) != 0 else 0
         iou = tp/(tp + fp + fn) if (tp + fp + fn) != 0 else 0
         mem = torch.cuda.max_memory_allocated()
         metrics_data[n,:] = np.array([tp, tn, fp, fn, mem])
-        print("%.8f  %.8f  %.8f  %.8f  %.8f" % (precision, recall, iou, inf_time, post_time))
+        print("%.8f  %.8f  %.8f  %.8f  %.8f %d" % (precision, recall, iou, inf_time, post_time, label_np[max_point]))
         torch.cuda.reset_max_memory_allocated()
 
         ## visualize
@@ -137,8 +142,6 @@ if __name__ == "__main__":
             cls_img = cls_img*0.5 + color_in*0.5
 
             ## best picking point
-            max_point = np.argmax(affordance_map)
-            max_point = (max_point//affordance_color.shape[1], max_point%affordance_color.shape[1])
             max_circ = patches.Circle(np.flip(max_point), radius=8, fill=False, linewidth=4.0, color='k')
 
             depth_np = np.array(depth_in, dtype=np.float64) / 65536
@@ -171,6 +174,9 @@ if __name__ == "__main__":
     print("average time:\t", mean_time[0], "ms  ", mean_time[1], "ms")
     print("inference:\t", np.sum(mean_time), "ms  ", 1000/np.sum(mean_time), "fps")
     print("max GPU memory:\t", ave_mem/2**30, "GB")
+
+    failed = np.asarray(failed)
+    np.savetxt('failed.txt', failed, fmt='%s')
 
     data = np.append(metrics_data, time_data, axis=1)
     result_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'result.txt')

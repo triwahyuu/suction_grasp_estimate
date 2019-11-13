@@ -7,11 +7,13 @@ import os.path as osp
 import time
 
 import open3d
-from scipy.ndimage.filters import generic_filter
-from scipy.ndimage.filters import uniform_filter
+from scipy.ndimage import gaussian_filter
+from scipy.ndimage.filters import generic_filter, uniform_filter
 
 import matplotlib.cbook
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.patches as patches
 import warnings
 warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
 
@@ -114,8 +116,9 @@ if __name__ == "__main__":
 
     ## get the suction affordance
     surf_norm, score = predict(rgb_in, rgb_bg, depth_in, depth_bg, cam_intrinsic)
-    score_im = Image.fromarray((score*255).astype(np.uint8))
-    score_im.save(osp.join(result_path, input_file + '.png'))
+    score = gaussian_filter(score, sigma=5, mode='nearest')
+    # score_im = Image.fromarray((score*255).astype(np.uint8))
+    # score_im.save(osp.join(result_path, input_file + '.png'))
 
     ## Load ground truth manual annotations for suction affordances
     ## 0 - negative, 128 - positive, 255 - neutral (no loss)
@@ -136,18 +139,36 @@ if __name__ == "__main__":
     recall = sum_tp/(sum_tp + sum_fn) if (sum_tp + sum_fp) != 0 else 0
     print("%s\t%.8f\t%.8f" % (input_file, precision, recall))
 
+    ## best picking point
+    max_point = np.unravel_index(score.argmax(), score.shape)
+    max_circ = patches.Circle(np.flip(max_point), radius=8, fill=False, linewidth=4.0, color='k')
+
     ## visualize
-    rgb_in_np = np.asarray(rgb_in, dtype=np.uint8)
-    plt.subplot(1,3,1)
+    rgb_in_np = np.asarray(rgb_in, dtype=np.float32) / 255
+    plt.figure()
     plt.imshow(rgb_in_np)
     plt.yticks([]); plt.xticks([])
-    plt.subplot(1,3,2)
-    plt.imshow(score)
-    plt.yticks([]); plt.xticks([])
-    plt.subplot(1,3,3)
-    plt.imshow(label_np)
-    plt.yticks([]); plt.xticks([])
+    plt.title("Color Image Input")
     fig = plt.gcf()
     fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
-    fig.canvas.set_window_title('Baseline Prediction Result')
+
+    cmap = cm.get_cmap('jet')
+    score = cmap(score)[:,:,:-1] # ommit last channel (get rgb)
+    plt.figure()
+    plt.imshow(score*0.5 + rgb_in_np*0.5)
+    plt.yticks([]); plt.xticks([])
+    plt.title("Affordance Map Output")
+    fig = plt.gcf()
+    fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
+    ax = plt.gca()
+    ax.add_patch(max_circ)
+
+
+    plt.figure()
+    plt.imshow(label_np)
+    plt.yticks([]); plt.xticks([])
+    plt.title("Label Image")
+    fig = plt.gcf()
+    fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
+    # fig.canvas.set_window_title('Baseline Prediction Result')
     plt.show()

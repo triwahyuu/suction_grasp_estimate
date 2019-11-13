@@ -99,5 +99,8 @@ if __name__ == "__main__":
     print("memory allocated: ", torch.cuda.max_memory_allocated()/2**30, "GB")
     print("   prec       recall       iou   ")
     print("%.8f  %.8f  %.8f" % (precision, recall, iou))
+
+    max_point = np.unravel_index(affordance_map.argmax(), affordance_map.shape)
+    print(label_np[max_point])
     
-    visualize(affordance_map, cls_pred, np.array(rgb_in))
+    visualize(affordance_map, cls_pred, np.array(rgb_in), label=label_np)
