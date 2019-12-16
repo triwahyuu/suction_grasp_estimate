@@ -35,12 +35,15 @@ plt.xticks(rad)
 plt.yticks(np.arange(56.5, 57.2, 0.1))
 plt.xlabel("Radius (cm)")
 plt.ylabel("Precision (%)")
+fig0 = plt.gcf()
+fig0.subplots_adjust(top=0.95, bottom=0.1, right=0.99, left=0.1)
 # plt.savefig("result/plt.png")
 
 
 y_prec_dep = prec_thres_data[thres_col == 0.25]
 x_thres_dep = thres_dep[thres_col == 0.25]
-plt.figure()
+fig1 = plt.figure()
+fig1.subplots_adjust(top=0.95, bottom=0.1, right=0.99, left=0.1)
 plt.plot(x_thres_dep, y_prec_dep)
 plt.xticks(x_thres_dep)
 plt.yticks(np.arange(56.0, 57.4, 0.2))
@@ -51,7 +54,8 @@ plt.ylabel("Precision (%)")
 
 y_prec_col = prec_thres_data[thres_dep == 0.11]
 x_thres_col = thres_col[thres_dep == 0.11]
-plt.figure()
+fig2 = plt.figure()
+fig2.subplots_adjust(top=0.95, bottom=0.1, right=0.99, left=0.1)
 plt.plot(x_thres_col, y_prec_col)
 plt.xticks(x_thres_col)
 # plt.yticks(np.arange(56.0, 57.4, 0.2))
@@ -60,7 +64,8 @@ plt.xlabel("Threshold")
 plt.ylabel("Precision (%)")
 
 
-plt.figure()
+fig3 = plt.figure()
+fig3.subplots_adjust(top=1.02, bottom=-0.05, right=1.1, left=-0.2)
 ax = plt.axes(projection='3d')
 ax.set_title("The Effect of Threshold Value on Precision")
 for v in np.arange(0.15, 0.50, 0.05):
@@ -69,6 +74,6 @@ for v in np.arange(0.15, 0.50, 0.05):
 ax.set_xlabel('color threshold')
 ax.set_ylabel('depth threshold')
 ax.set_zlabel('precision')
-ax.view_init(elev=23, azim=-75)
+ax.view_init(elev=15, azim=-76)
 # ax.set_aspect('equal')
 plt.show()
