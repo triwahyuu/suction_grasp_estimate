@@ -6,6 +6,8 @@
 import torch
 from torch import nn
 from torchvision import models
+from .efficientnet import effbisenet
+
 import warnings
 warnings.filterwarnings(action='ignore')
 
@@ -39,12 +41,21 @@ class ResNet(nn.Module):
         tail = torch.mean(tail, 2, keepdim=True)
         return feature3, feature4, tail
 
-def _build_contextpath(model_name):
+def _build_contextpath_resnet(model_name):
     avail_resnet = [('resnet' + str(n)) for n in [18, 34, 50, 101]]
     if model_name not in avail_resnet:
         raise ValueError('BiseNet backend should be one of: ' + ', '.join(avail_resnet))
     
     model = ResNet(arch=model_name)
+    return model
+
+def _build_contextpath_effnet(model_name):
+    avail_effnet = [('efficientnet-b' + str(n)) for n in range(6)]
+    if model_name not in avail_effnet:
+        raise ValueError('BiseNet backend with EfficientNet should be one of: ' + \
+            ', '.join(avail_effnet))
+    
+    model,_ = effbisenet(arch=model_name, pretrained=True)
     return model
 
 class ConvBlock(nn.Module):

@@ -6,9 +6,9 @@ available_model = [] + \
     [('pspnet' + str(n)) for n in [18, 34, 50, 101, 152]] + \
     [('bisenet' + str(n)) for n in [18, 34, 50, 101]] + \
     [('fcneffnetb' + str(n)) for n in range(6)] + \
-    [('pspeffnetb' + str(n)) for n in range(6)]
+    [('pspeffnetb' + str(n)) for n in range(6)] + \
+    [('biseeffnetb' + str(n)) for n in range(6)]
     ## still failing to train:
-    # 'bisenet18', 'bisenet34', 'bisenet50', 'bisenet101',
     # 'icnet18', 'icnet34', 'icnet50', 'icnet101',
     # 'rfnet50', 'rfnet101', 'rfnet152', 
 
@@ -18,10 +18,11 @@ def build_model(arch, n_class=3, out_size=(480, 640)):
         'resnet': 'SuctionModelFCN',
         'pspnet': 'SuctionPSPNet',
         'bisenet' : 'SuctionBiSeNet',
-        'icnet' : 'SuctionICNet',
         'fcneffnetb' : 'SuctionEffNetFCN',
         'pspeffnetb' : 'SuctionEffNetPSP',
-        'rfnet' : 'SuctionRefineNetLW'
+        'biseeffnetb' : 'SuctionEfficientBiSeNet',
+        # 'icnet' : 'SuctionICNet',
+        # 'rfnet' : 'SuctionRefineNetLW'
     }
     try:
         module = getattr(models.model, arch2class_map[arch_nodigit])

@@ -11,7 +11,8 @@ import numbers
 from .rfnet import rfnet101, rfnet50
 from .rfnet_lw import rfnet_lw101, rfnet_lw50
 from .pspnet import PSPNet
-from .bisenet import BiSeNet, SpatialPath, _build_contextpath
+from .bisenet import BiSeNet, SpatialPath
+from .bisenet import _build_contextpath_resnet, _build_contextpath_effnet
 from .efficientnet import efficientnet
 
 
@@ -386,7 +387,7 @@ class SuctionBiSeNet(nn.Module):
         return self.upsample(out)
     
     def _create_trunk(self):
-        m = _build_contextpath(self.backbone)
+        m = _build_contextpath_resnet(self.backbone)
         updatePadding(m, nn.ReflectionPad2d)
         return m
 
@@ -469,3 +470,48 @@ class SuctionEffNetPSP(nn.Module):
         
         out = self.feature(rgbd_parallel)
         return F.interpolate(out, size=self.out_size, mode='bilinear')
+
+class SuctionEfficientBiSeNet(nn.Module):
+    def __init__(self, arch='bisenet18', n_class=3, out_size=(480, 640)):
+        super(SuctionEfficientBiSeNet, self).__init__()
+        self.arch = arch
+        self.n_class = n_class
+        self.out_size = out_size
+        self.backbone = arch.replace('biseeffnet', 'efficientnet-')
+
+        self.rgb_trunk = self._create_trunk()
+        self.depth_trunk = self._create_trunk()
+
+        self.rgb_spatial = SpatialPath()
+        self.depth_spatial = SpatialPath()
+        
+        self.feature = BiSeNet(n_class, self.backbone)
+        self.upsample = nn.Upsample(size=out_size, mode='bilinear')
+        updatePadding(self.feature, nn.ReflectionPad2d)
+    
+    def forward(self, rgb_input, ddd_input):
+        ## context path
+        rgb_cx1, rgb_cx2, rgb_tail = self.rgb_trunk(rgb_input)
+        depth_cx1, depth_cx2, depth_tail = self.depth_trunk(ddd_input)
+
+        ## spatial path
+        rgb_sx = self.rgb_spatial(rgb_input)
+        depth_sx = self.depth_spatial(ddd_input)
+
+        ## concatenate rgb and depth
+        rgbd_cx1 = torch.cat((rgb_cx1, depth_cx1), 1)
+        rgbd_cx2 = torch.cat((rgb_cx2, depth_cx2), 1)
+        rgbd_tail = torch.cat((rgb_tail, depth_tail), 1)
+        rgbd_sx = torch.cat((rgb_sx, depth_sx), 1)
+        
+        out = self.feature(rgbd_sx, rgbd_cx1, rgbd_cx2, rgbd_tail)
+        
+        if self.training:
+            return self.upsample(out[0]), self.upsample(out[1]), self.upsample(out[2])
+        
+        return self.upsample(out)
+    
+    def _create_trunk(self):
+        m = _build_contextpath_effnet(self.backbone)
+        updatePadding(m, nn.ReflectionPad2d)
+        return m

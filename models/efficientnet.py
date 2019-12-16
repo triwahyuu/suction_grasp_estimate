@@ -149,8 +149,8 @@ class EfficientNet(nn.Module):
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
 
         ## Final linear layer
-        self._dropout = self._global_params.dropout_rate
-        self._fc = nn.Linear(out_channels, self._global_params.num_classes)
+        # self._dropout = self._global_params.dropout_rate
+        # self._fc = nn.Linear(out_channels, self._global_params.num_classes)
 
     def extract_features(self, inputs):
         """ Returns output of the final convolution layer """
@@ -183,6 +183,93 @@ class EfficientNet(nn.Module):
         #     x = F.dropout(x, p=self._dropout, training=self.training)
         # x = self._fc(x)
         return x
+
+
+class EfficientNetBiSeNet(nn.Module):
+    """
+    An EfficientNet backbone for BiSeNet. 
+
+    Args:
+        blocks_args (list): A list of BlockArgs to construct blocks
+        global_params (namedtuple): A set of GlobalParams shared between blocks
+
+    """
+
+    def __init__(self, blocks_args=None, global_params=None):
+        super().__init__()
+        assert isinstance(blocks_args, list), 'blocks_args should be a list'
+        assert len(blocks_args) > 0, 'block args must be greater than 0'
+        self._global_params = global_params
+        self._blocks_args = blocks_args
+        ##
+        self._in_size = (self._global_params.in_size, self._global_params.in_size) 
+
+        ## Batch norm parameters
+        bn_mom = 1 - self._global_params.batch_norm_momentum
+        bn_eps = self._global_params.batch_norm_epsilon
+
+        ## Stem
+        in_channels = 3  # rgb
+        out_channels = round_filters(32, self._global_params)  # number of output channels
+        self._conv_stem = Conv2dSamePadding(in_channels, out_channels, kernel_size=3, stride=2, bias=False)
+        self._bn0 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
+
+        ## Build blocks
+        self._blocks = nn.ModuleList([])
+        for block_args in self._blocks_args:
+            ## Update block input and output filters based on depth multiplier.
+            block_args = block_args._replace(
+                input_filters=round_filters(block_args.input_filters, self._global_params),
+                output_filters=round_filters(block_args.output_filters, self._global_params),
+                num_repeat=round_repeats(block_args.num_repeat, self._global_params)
+            )
+
+            ## The first block needs to take care of stride and filter size increase.
+            self._blocks.append(MBConvBlock(block_args, self._global_params))
+            if block_args.num_repeat > 1:
+                block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
+            for _ in range(block_args.num_repeat - 1):
+                self._blocks.append(MBConvBlock(block_args, self._global_params))
+
+        ## Head
+        in_channels = block_args.output_filters  # output of final block
+        out_channels = round_filters(1280, self._global_params)
+        self._conv_head = Conv2dSamePadding(in_channels, out_channels, kernel_size=1, bias=False)
+        self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
+
+    def extract_features(self, inputs):
+        """ Returns output of the final convolution layer """
+
+        ## Stem
+        x = relu_fn(self._bn0(self._conv_stem(inputs)))
+
+        ## Blocks
+        feature3, feature4 = None, None
+        for idx, block in enumerate(self._blocks):
+            drop_connect_rate = self._global_params.drop_connect_rate
+            if drop_connect_rate:
+                drop_connect_rate *= float(idx) / len(self._blocks)
+            x = block(x, drop_connect_rate)
+
+            if idx == ((len(self._blocks)-1) - 4):
+                feature3 = x
+        feature4 = x
+        return feature3, feature4
+
+    def forward(self, inputs):
+        """ Calls extract_features to extract features, applies final linear layer, and returns logits. """
+        
+        ## force input to have the wanted size
+        inputs = F.interpolate(inputs, size=self._in_size, mode='bilinear')
+
+        ## Convolution layers
+        feature3, feature4 = self.extract_features(inputs)
+
+        ## Head
+        x = relu_fn(self._bn1(self._conv_head(feature4)))
+        tail = torch.mean(x, 3, keepdim=True)
+        tail = torch.mean(tail, 2, keepdim=True)
+        return feature3, feature4, tail
 
 
 
@@ -425,6 +512,21 @@ def efficientnet(model_name, pretrained=False, override_params=None):
     _check_model_name_is_valid(model_name, pretrained)
     blocks_args, global_params, input_size = get_model_params(model_name, override_params)
     model = EfficientNet(blocks_args, global_params)
+
+    if pretrained:
+        state_dict = load_pretrained_weights(model_name)
+        model.load_state_dict(state_dict)
+    return model, input_size
+
+def effbisenet(model_name, pretrained=False, override_params=None):
+    """Constructs EfficientNet backbone for BiSeNet.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        override_params (namedtuple): override the original global params
+    """
+    _check_model_name_is_valid(model_name, pretrained)
+    blocks_args, global_params, input_size = get_model_params(model_name, override_params)
+    model = EfficientNetBiSeNet(blocks_args, global_params)
 
     if pretrained:
         state_dict = load_pretrained_weights(model_name)
