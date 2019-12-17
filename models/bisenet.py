@@ -55,8 +55,8 @@ def _build_contextpath_effnet(model_name):
         raise ValueError('BiseNet backend with EfficientNet should be one of: ' + \
             ', '.join(avail_effnet))
     
-    model,_ = effbisenet(model_name, pretrained=True)
-    return model
+    model, in_size = effbisenet(model_name, pretrained=True)
+    return model, in_size
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=2,padding=1):
@@ -108,9 +108,7 @@ class AttentionRefinementModule(nn.Module):
 class FeatureFusionModule(nn.Module):
     def __init__(self, num_classes, in_channels):
         super().__init__()
-        # self.in_channels = input_1.channels + input_2.channels
-        # resnet101 3328 = 256(from context path) + 1024(from context path) + 2048(from spatial path)
-        # resnet18  1024 = 256(from context path) + 256(from context path) + 512(from spatial path)
+        
         self.in_channels = in_channels 
 
         self.convblock = ConvBlock(in_channels=self.in_channels, out_channels=num_classes, stride=1)
@@ -122,6 +120,8 @@ class FeatureFusionModule(nn.Module):
 
 
     def forward(self, input_1, input_2):
+        input_1 = torch.nn.functional.interpolate(input_1, \
+            size=(input_2.size(2), input_2.size(2)), mode='bilinear')
         x = torch.cat((input_1, input_2), dim=1)
         assert self.in_channels == x.size(1), 'in_channels of ConvBlock should be {}'.format(x.size(1))
         feature = self.convblock(x)
@@ -134,20 +134,19 @@ class FeatureFusionModule(nn.Module):
         return x
 
 class BiSeNet(nn.Module):
-    def __init__(self, num_classes, att_size, bise_size):
+    def __init__(self, num_classes, att_size, bise_size, ffm_size):
         super(BiSeNet, self).__init__()
 
-        b = bise_size
-        a = att_size
-        self.attention_refinement_module1 = AttentionRefinementModule(a, a)
-        self.attention_refinement_module2 = AttentionRefinementModule(b*2, b*2)
-        # supervision block
-        self.supervision1 = nn.Conv2d(in_channels=b, out_channels=num_classes, kernel_size=1)
-        self.supervision2 = nn.Conv2d(in_channels=b*2, out_channels=num_classes, kernel_size=1)
-        # build feature fusion module
-        self.feature_fusion_module = FeatureFusionModule(num_classes, b*3+512)
+        ## attention module
+        self.attention_refinement_module1 = AttentionRefinementModule(att_size, att_size)
+        self.attention_refinement_module2 = AttentionRefinementModule(bise_size*2, bise_size*2)
+        ## supervision block
+        self.supervision1 = nn.Conv2d(in_channels=att_size, out_channels=num_classes, kernel_size=1)
+        self.supervision2 = nn.Conv2d(in_channels=bise_size*2, out_channels=num_classes, kernel_size=1)
+        ## build feature fusion module
+        self.feature_fusion_module = FeatureFusionModule(num_classes, ffm_size)
 
-        # build final convolution
+        ## build final convolution
         self.conv = nn.Conv2d(in_channels=num_classes, out_channels=num_classes, kernel_size=1)
         # self.sigmoid = nn.Sigmoid()
 

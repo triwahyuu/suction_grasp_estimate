@@ -361,7 +361,7 @@ class SuctionBiSeNet(nn.Module):
         self.depth_spatial = SpatialPath()
         
         expansion = 1 if self.backbone in ['resnet18', 'resnet34'] else 4
-        self.feature = BiSeNet(n_class, 512*expansion, 512*expansion)
+        self.feature = BiSeNet(n_class, 512*expansion, 512*expansion, 512*3*expansion+512)
         self.upsample = nn.Upsample(size=out_size, mode='bilinear')
         updatePadding(self.feature, nn.ReflectionPad2d)
     
@@ -480,17 +480,18 @@ class SuctionEfficientBiSeNet(nn.Module):
         self.out_size = out_size
         self.backbone = arch.replace('biseeffnet', 'efficientnet-')
 
-        self.rgb_trunk = self._create_trunk()
-        self.depth_trunk = self._create_trunk()
+        self.rgb_trunk, self.in_size = self._create_trunk()
+        self.depth_trunk, self.in_size = self._create_trunk()
 
         self.rgb_spatial = SpatialPath()
         self.depth_spatial = SpatialPath()
 
-        att1 = [384, 384, 423, 461, 538, 615]
+        att1 = [384, 384, 416, 464, 544, 608]
         att2 = [1280, 1280, 1408, 1536, 1792, 2048]
+        ffm = [3456, 3456, 3744, 4048, 4640, 5216]
         effnet_idx = int(arch[-1])
         
-        self.feature = BiSeNet(n_class, att1[effnet_idx], att2[effnet_idx])
+        self.feature = BiSeNet(n_class, att1[effnet_idx], att2[effnet_idx], ffm[effnet_idx])
         self.upsample = nn.Upsample(size=out_size, mode='bilinear')
         updatePadding(self.feature, nn.ReflectionPad2d)
     
@@ -500,6 +501,8 @@ class SuctionEfficientBiSeNet(nn.Module):
         depth_cx1, depth_cx2, depth_tail = self.depth_trunk(ddd_input)
 
         ## spatial path
+        rgb_input = F.interpolate(rgb_input, size=self.in_size, mode='bilinear')
+        ddd_input = F.interpolate(ddd_input, size=self.in_size, mode='bilinear')
         rgb_sx = self.rgb_spatial(rgb_input)
         depth_sx = self.depth_spatial(ddd_input)
 
@@ -509,6 +512,7 @@ class SuctionEfficientBiSeNet(nn.Module):
         rgbd_tail = torch.cat((rgb_tail, depth_tail), 1)
         rgbd_sx = torch.cat((rgb_sx, depth_sx), 1)
         
+        rgbd_cx1 = torch.nn.functional.interpolate(rgbd_cx1, scale_factor=2, mode='bilinear')
         out = self.feature(rgbd_sx, rgbd_cx1, rgbd_cx2, rgbd_tail)
         
         if self.training:
@@ -517,6 +521,6 @@ class SuctionEfficientBiSeNet(nn.Module):
         return self.upsample(out)
     
     def _create_trunk(self):
-        m = _build_contextpath_effnet(self.backbone)
+        m, in_size = _build_contextpath_effnet(self.backbone)
         updatePadding(m, nn.ReflectionPad2d)
-        return m
+        return m, in_size
