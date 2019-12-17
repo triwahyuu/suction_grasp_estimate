@@ -100,16 +100,11 @@ class Trainer(object):
 
         ## criterion
         self.lambdas = None
-        if 'bisenet' in self.arch:
+        if 'bise' in self.arch:
             self.criterion = loss[0].cuda() if self.cuda else loss[0]
             self.crit_aux1 = loss[1].cuda() if self.cuda else loss[1]
             self.crit_aux2 = loss[2].cuda() if self.cuda else loss[2]
             self.alphas = loss_params if loss_params != None else [1, 1]
-        elif 'icnet' in self.arch:
-            self.criterion = loss[2].cuda() if self.cuda else loss[2]
-            self.crit_sub24 = loss[1].cuda() if self.cuda else loss[1]
-            self.crit_sub4 = loss[0].cuda() if self.cuda else loss[0]
-            self.lambdas = loss_params if loss_params != None else [0.16, 0.4, 1.0]
         else:
             self.criterion = loss.cuda() if self.cuda else loss
 
@@ -270,7 +265,7 @@ class Trainer(object):
         for batch_idx, (rgb_img, ddd_img, target) in tqdm.tqdm(
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc=' epoch %d' % self.epoch, ncols=80, leave=False):
-            
+
             iteration = batch_idx + self.epoch * len(self.train_loader)
             self.iteration = iteration
 
@@ -283,13 +278,9 @@ class Trainer(object):
             ## main training function
             ## compute output of feed forward
             output = self.model(rgb_img, ddd_img)
-            if self.arch.startswith('bisenet'):
+            if self.arch.startswith('bise'):
                 out_sup1 = F.interpolate(output[1], size=target.size()[1:], mode='bilinear')
                 out_sup2 = F.interpolate(output[2], size=target.size()[1:], mode='bilinear')
-                output = F.interpolate(output[0], size=target.size()[1:], mode='bilinear')
-            elif self.arch.startswith('icnet'):
-                out_sub24 = F.interpolate(output[1], size=target.size()[1:], mode='bilinear')
-                out_sub4 = F.interpolate(output[2], size=target.size()[1:], mode='bilinear')
                 output = F.interpolate(output[0], size=target.size()[1:], mode='bilinear')
             elif self.train_loader.dataset.encode_label:
                 output = F.interpolate(output, size=target.size()[2:], mode='bilinear')
@@ -297,18 +288,11 @@ class Trainer(object):
 
             ## compute loss and backpropagate
             loss = None
-            if self.arch.startswith('bisenet'):
+            if self.arch.startswith('bise'):
                 loss_p = self.criterion(output, target)
                 loss_a1 = self.crit_aux1(out_sup1, target)
                 loss_a2 = self.crit_aux2(out_sup2, target)
                 loss = loss_p + self.alphas[0] * loss_a1 + self.alphas[1] * loss_a2
-            elif self.arch.startswith('icnet'):
-                loss_sub124 = self.criterion(output, target)
-                loss_sub24 = self.crit_sub24(out_sub24, target)
-                loss_sub4 = self.crit_sub4(out_sub4, target)
-                loss = self.lambdas[0] * loss_sub4 + \
-                       self.lambdas[1] * loss_sub24 + \
-                       self.lambdas[2] * loss_sub124
             else:
                 loss = self.criterion(output, target)
 
@@ -322,8 +306,8 @@ class Trainer(object):
                     scaled_loss.backward()
             else:
                 loss.backward()
-            
-            if self.arch.startswith('bisenet') or ('effnet' in self.arch):
+
+            if self.arch.startswith('bise') or ('effnet' in self.arch):
                 nn.utils.clip_grad_norm_(self.model.parameters(), 0.25)
             self.optim.step()
             if self.arch.startswith('rfnet'):
@@ -439,7 +423,7 @@ if __name__ == "__main__":
 
     ## Loss
     loss_params = None
-    if options.arch.startswith('bisenet'):
+    if options.arch.startswith('bise'):
         crit_principal = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
         crit_aux1 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
         crit_aux2 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]))
@@ -448,19 +432,13 @@ if __name__ == "__main__":
         # crit_aux2 = nn.BCEWithLogitsLoss(weight=torch.Tensor([1, 1, 0]))
         criterion = [crit_principal, crit_aux1, crit_aux2]
         loss_params = [1, 1]    # aux1, aux2
-    elif options.arch.startswith('icnet'):
-        crit_sub4 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
-        crit_sub24 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
-        crit_sub124 = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0]), reduction='mean')
-        criterion = [crit_sub4, crit_sub24, crit_sub124]
-        loss_params = [0.16, 0.4, 1.0] # sub4, sub24, sub124
     else:
         criterion = nn.CrossEntropyLoss(weight=torch.Tensor([1, 1, 0])).to(device)
 
     ## Optimizer
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, nesterov=True)
     scheduler = None
-    if options.arch.startswith('bisenet'):
+    if options.arch.startswith('bise'):
         args.lr = 0.01
         args.momentum = 0.98
         # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=5)
