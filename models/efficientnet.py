@@ -266,8 +266,8 @@ class EfficientNetBiSeNet(nn.Module):
         feature3, feature4 = self.extract_features(inputs)
 
         ## Head
-        x = relu_fn(self._bn1(self._conv_head(feature4)))
-        tail = torch.mean(x, 3, keepdim=True)
+        feature4 = relu_fn(self._bn1(self._conv_head(feature4)))
+        tail = torch.mean(feature4, 3, keepdim=True)
         tail = torch.mean(tail, 2, keepdim=True)
         return feature3, feature4, tail
 
@@ -515,7 +515,7 @@ def efficientnet(model_name, pretrained=False, override_params=None):
 
     if pretrained:
         state_dict = load_pretrained_weights(model_name)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
     return model, input_size
 
 def effbisenet(model_name, pretrained=False, override_params=None):
@@ -530,5 +530,5 @@ def effbisenet(model_name, pretrained=False, override_params=None):
 
     if pretrained:
         state_dict = load_pretrained_weights(model_name)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
     return model, input_size

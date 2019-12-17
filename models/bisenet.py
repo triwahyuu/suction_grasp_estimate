@@ -55,7 +55,7 @@ def _build_contextpath_effnet(model_name):
         raise ValueError('BiseNet backend with EfficientNet should be one of: ' + \
             ', '.join(avail_effnet))
     
-    model,_ = effbisenet(arch=model_name, pretrained=True)
+    model,_ = effbisenet(model_name, pretrained=True)
     return model
 
 class ConvBlock(nn.Module):
@@ -89,12 +89,14 @@ class AttentionRefinementModule(nn.Module):
         self.bn = nn.BatchNorm2d(out_channels)
         self.sigmoid = nn.Sigmoid()
         self.in_channels = in_channels
+        self.out_channels = out_channels
         self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
 
     def forward(self, input):
         # global average pooling
         x = self.avgpool(input)
-        assert self.in_channels == x.size(1), 'in_channels and out_channels should all be {}'.format(x.size(1))
+        assert self.in_channels == x.size(1), \
+            'in_channels ({}) and out_channels ({}) should all be {}'.format(self.in_channels, self.out_channels, x.size(1))
         x = self.conv(x)
         # x = self.sigmoid(self.bn(x))
         x = self.sigmoid(x)
@@ -107,8 +109,8 @@ class FeatureFusionModule(nn.Module):
     def __init__(self, num_classes, in_channels):
         super().__init__()
         # self.in_channels = input_1.channels + input_2.channels
-        # resnet101 3328 = 256(from context path) + 1024(from spatial path) + 2048(from spatial path)
-        # resnet18  1024 = 256(from context path) + 256(from spatial path) + 512(from spatial path)
+        # resnet101 3328 = 256(from context path) + 1024(from context path) + 2048(from spatial path)
+        # resnet18  1024 = 256(from context path) + 256(from context path) + 512(from spatial path)
         self.in_channels = in_channels 
 
         self.convblock = ConvBlock(in_channels=self.in_channels, out_channels=num_classes, stride=1)
@@ -132,30 +134,18 @@ class FeatureFusionModule(nn.Module):
         return x
 
 class BiSeNet(nn.Module):
-    def __init__(self, num_classes, context_path):
+    def __init__(self, num_classes, att_size, bise_size):
         super(BiSeNet, self).__init__()
 
-        # build attention refinement module  for resnet 101
-        if context_path in ['resnet101', 'resnet50']:
-            self.attention_refinement_module1 = AttentionRefinementModule(2048, 2048)
-            self.attention_refinement_module2 = AttentionRefinementModule(4096, 4096)
-            # supervision block
-            self.supervision1 = nn.Conv2d(in_channels=2048, out_channels=num_classes, kernel_size=1)
-            self.supervision2 = nn.Conv2d(in_channels=4096, out_channels=num_classes, kernel_size=1)
-            # build feature fusion module
-            self.feature_fusion_module = FeatureFusionModule(num_classes, 6656)
-
-        elif context_path in ['resnet18', 'resnet34']:
-            ## build attention refinement module  for resnet 18
-            self.attention_refinement_module1 = AttentionRefinementModule(512, 512)
-            self.attention_refinement_module2 = AttentionRefinementModule(1024, 1024)
-            ## supervision block
-            self.supervision1 = nn.Conv2d(in_channels=512, out_channels=num_classes, kernel_size=1)
-            self.supervision2 = nn.Conv2d(in_channels=1024, out_channels=num_classes, kernel_size=1)
-            ## build feature fusion module
-            self.feature_fusion_module = FeatureFusionModule(num_classes, 2048)
-        else:
-            raise Exception('Error: context_path %s is unsupported' % (context_path))
+        b = bise_size
+        a = att_size
+        self.attention_refinement_module1 = AttentionRefinementModule(a, a)
+        self.attention_refinement_module2 = AttentionRefinementModule(b*2, b*2)
+        # supervision block
+        self.supervision1 = nn.Conv2d(in_channels=b, out_channels=num_classes, kernel_size=1)
+        self.supervision2 = nn.Conv2d(in_channels=b*2, out_channels=num_classes, kernel_size=1)
+        # build feature fusion module
+        self.feature_fusion_module = FeatureFusionModule(num_classes, b*3+512)
 
         # build final convolution
         self.conv = nn.Conv2d(in_channels=num_classes, out_channels=num_classes, kernel_size=1)

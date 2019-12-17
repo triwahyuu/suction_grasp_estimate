@@ -360,7 +360,8 @@ class SuctionBiSeNet(nn.Module):
         self.rgb_spatial = SpatialPath()
         self.depth_spatial = SpatialPath()
         
-        self.feature = BiSeNet(n_class, self.backbone)
+        expansion = 1 if self.backbone in ['resnet18', 'resnet34'] else 4
+        self.feature = BiSeNet(n_class, 512*expansion, 512*expansion)
         self.upsample = nn.Upsample(size=out_size, mode='bilinear')
         updatePadding(self.feature, nn.ReflectionPad2d)
     
@@ -472,7 +473,7 @@ class SuctionEffNetPSP(nn.Module):
         return F.interpolate(out, size=self.out_size, mode='bilinear')
 
 class SuctionEfficientBiSeNet(nn.Module):
-    def __init__(self, arch='bisenet18', n_class=3, out_size=(480, 640)):
+    def __init__(self, arch='biseeffnetb0', n_class=3, out_size=(480, 640)):
         super(SuctionEfficientBiSeNet, self).__init__()
         self.arch = arch
         self.n_class = n_class
@@ -484,8 +485,12 @@ class SuctionEfficientBiSeNet(nn.Module):
 
         self.rgb_spatial = SpatialPath()
         self.depth_spatial = SpatialPath()
+
+        att1 = [384, 384, 423, 461, 538, 615]
+        att2 = [1280, 1280, 1408, 1536, 1792, 2048]
+        effnet_idx = int(arch[-1])
         
-        self.feature = BiSeNet(n_class, self.backbone)
+        self.feature = BiSeNet(n_class, att1[effnet_idx], att2[effnet_idx])
         self.upsample = nn.Upsample(size=out_size, mode='bilinear')
         updatePadding(self.feature, nn.ReflectionPad2d)
     
