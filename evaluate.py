@@ -78,12 +78,26 @@ if __name__ == "__main__":
     test_img_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
     test_len = len(test_img_list)
 
+    output_path = os.path.join(options.proj_path, 'result', 'eval')
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    with open(os.path.join(output_path, options.arch + '_log.csv'), 'w') as f:
+        log_headers = ['precision', 'recall', 'iou', 'memory', 'inf_time', 'post_time']
+        f.write(','.join(log_headers) + '\n')
+    if not os.path.exists(os.path.join(output_path, 'summary.csv')):
+        with open(os.path.join(output_path, 'summary.csv'), 'w') as f:
+            log_headers = ['arch', 'precision', 'recall', 'iou', \
+                'memory', 'inf_time', 'post_time']
+            f.write(','.join(log_headers) + '\n')
+
     print("== Start evaluating...")
     metrics_data = np.zeros((test_len, 5), dtype=np.int64)  # [tp, tn, fp, fn, memory]
     time_data = np.zeros((test_len,2), dtype=np.float64)    # [inference, post-processing]
     failed = []
-    for n, fname in enumerate(test_img_list):
-        print(fname, "%d/%d: " % (n, test_len), end='')
+    for n, fname in tqdm.tqdm(enumerate(test_img_list), total=len(test_img_list),
+            desc='eval' , ncols=80, leave=False):
+        # print(fname, "%d/%d: " % (n, test_len), end='')
         
         color_in = Image.open(os.path.join(options.data_path, 'color-input', fname + '.png'))
         depth_in = Image.open(os.path.join(options.data_path, 'depth-input', fname + '.png'))
@@ -96,6 +110,7 @@ if __name__ == "__main__":
             output = model(rgb_input, ddd_input)
             inf_time = time.perf_counter() - t
 
+            time.sleep(0.1) ## will this work?
             t = time.perf_counter()
             cls_pred = output.data.argmax(1).detach().cpu().numpy().squeeze(0)
             ## get the first channel -> the probability of success
@@ -128,8 +143,13 @@ if __name__ == "__main__":
         iou = tp/(tp + fp + fn) if (tp + fp + fn) != 0 else 0
         mem = torch.cuda.max_memory_allocated()
         metrics_data[n,:] = np.array([tp, tn, fp, fn, mem])
-        print("%.8f  %.8f  %.8f  %.8f  %.8f %d" % (precision, recall, iou, inf_time, post_time, label_np[max_point]))
+        # print("%.8f  %.8f  %.8f  %.8f  %.8f %d" % (precision, recall, iou, inf_time, post_time, label_np[max_point]))
         torch.cuda.reset_max_memory_allocated()
+
+        with open(os.path.join(output_path, options.arch + '_log.csv'), 'a') as f:
+            log = ['%.8f'%(precision), '%.8f'%(recall), '%.8f'%(iou), \
+                '%.8f'%(mem/2**20), '%.8f'%(inf_time), '%.8f'%(post_time)]
+            f.write(','.join(log) + '\n')
 
         ## visualize
         if args.visualize:
@@ -169,11 +189,16 @@ if __name__ == "__main__":
 
     time_data_new = np.delete(time_data, 0, axis=0) # delete first row, usually outliers
     mean_time = np.mean(time_data_new, axis=0)*1000
-    print("\n\n    precision             recall               iou       ")
+    print("\n    precision             recall               iou       ")
     print("%.16f  %.16f  %.16f" % (precision, recall, mean_iou))
     print("average time:\t", mean_time[0], "ms  ", mean_time[1], "ms")
     print("inference:\t", np.sum(mean_time), "ms  ", 1000/np.sum(mean_time), "fps")
     print("max GPU memory:\t", ave_mem/2**30, "GB")
+
+    with open(os.path.join(output_path, 'summary.csv'), 'a') as f:
+        log = [options.arch, '%.8f'%(precision), '%.8f'%(recall), '%.8f'%(mean_iou), \
+            '%.8f'%(ave_mem/2**20), '%.8f'%(mean_time[0]), '%.8f'%(mean_time[1])]
+        f.write(','.join(log) + '\n')
 
     failed = np.asarray(failed)
     np.savetxt('failed.txt', failed, fmt='%s')
