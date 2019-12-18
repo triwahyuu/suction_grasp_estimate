@@ -68,9 +68,9 @@ if __name__ == "__main__":
         fig.canvas.set_window_title('Evaluation Result')
 
     ## prepare model
-    print("== Loading model...")
     checkpoint = torch.load(options.model_path)
     options.arch = args.arch if args.arch != '' else checkpoint['arch']
+    print("== Loading %s" % (options.arch))
     model = models.build_model(options.arch)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(options.device).eval()
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    with open(os.path.join(output_path, options.arch + '_log.csv'), 'w') as f:
+    with open(os.path.join(output_path, options.arch + '.csv'), 'w') as f:
         log_headers = ['precision', 'recall', 'iou', 'memory', 'inf_time', 'post_time']
         f.write(','.join(log_headers) + '\n')
     if not os.path.exists(os.path.join(output_path, 'summary.csv')):
@@ -91,7 +91,6 @@ if __name__ == "__main__":
                 'memory', 'inf_time', 'post_time']
             f.write(','.join(log_headers) + '\n')
 
-    print("== Start evaluating...")
     metrics_data = np.zeros((test_len, 5), dtype=np.int64)  # [tp, tn, fp, fn, memory]
     time_data = np.zeros((test_len,2), dtype=np.float64)    # [inference, post-processing]
     failed = []
@@ -111,7 +110,7 @@ if __name__ == "__main__":
             inf_time = time.perf_counter() - t
 
             torch.cuda.synchronize()
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
             time.sleep(0.1) ## will this work?
 
             t = time.perf_counter()
@@ -149,7 +148,7 @@ if __name__ == "__main__":
         # print("%.8f  %.8f  %.8f  %.8f  %.8f %d" % (precision, recall, iou, inf_time, post_time, label_np[max_point]))
         torch.cuda.reset_max_memory_allocated()
 
-        with open(os.path.join(output_path, options.arch + '_log.csv'), 'a') as f:
+        with open(os.path.join(output_path, options.arch + '.csv'), 'a') as f:
             log = ['%.8f'%(precision), '%.8f'%(recall), '%.8f'%(iou), \
                 '%.8f'%(mem/2**20), '%.8f'%(inf_time), '%.8f'%(post_time)]
             f.write(','.join(log) + '\n')
