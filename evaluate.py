@@ -110,7 +110,10 @@ if __name__ == "__main__":
             output = model(rgb_input, ddd_input)
             inf_time = time.perf_counter() - t
 
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
             time.sleep(0.1) ## will this work?
+
             t = time.perf_counter()
             cls_pred = output.data.argmax(1).detach().cpu().numpy().squeeze(0)
             ## get the first channel -> the probability of success
