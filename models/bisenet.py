@@ -121,7 +121,7 @@ class FeatureFusionModule(nn.Module):
 
     def forward(self, input_1, input_2):
         input_1 = torch.nn.functional.interpolate(input_1, \
-            size=(input_2.size(2), input_2.size(2)), mode='bilinear')
+            size=(input_2.size(2), input_2.size(3)), mode='bilinear')
         x = torch.cat((input_1, input_2), dim=1)
         assert self.in_channels == x.size(1), 'in_channels of ConvBlock should be {}'.format(x.size(1))
         feature = self.convblock(x)
