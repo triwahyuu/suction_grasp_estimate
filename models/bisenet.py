@@ -120,8 +120,6 @@ class FeatureFusionModule(nn.Module):
 
 
     def forward(self, input_1, input_2):
-        input_1 = torch.nn.functional.interpolate(input_1, \
-            size=(input_2.size(2), input_2.size(3)), mode='bilinear')
         x = torch.cat((input_1, input_2), dim=1)
         assert self.in_channels == x.size(1), 'in_channels of ConvBlock should be {}'.format(x.size(1))
         feature = self.convblock(x)
@@ -134,8 +132,9 @@ class FeatureFusionModule(nn.Module):
         return x
 
 class BiSeNet(nn.Module):
-    def __init__(self, num_classes, att_size, bise_size, ffm_size):
+    def __init__(self, backbone, num_classes, att_size, bise_size, ffm_size):
         super(BiSeNet, self).__init__()
+        self.backbone = backbone
 
         ## attention module
         self.attention_refinement_module1 = AttentionRefinementModule(att_size, att_size)
@@ -168,6 +167,8 @@ class BiSeNet(nn.Module):
             cx2_sup = torch.nn.functional.interpolate(self.supervision2(cx2), scale_factor=8, mode='bilinear')
 
         # output of feature fusion module
+        if self.backbone == 'efficientnet':
+            sx = nn.functional.interpolate(sx, size=(cx.size(2), cx.size(3)), mode='bilinear')
         result = self.feature_fusion_module(sx, cx)
 
         # upsampling
