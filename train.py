@@ -470,7 +470,7 @@ if __name__ == "__main__":
     start_iteration = 0
     if args.resume != '':
         checkpoint = torch.load(args.resume)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         start_epoch = checkpoint['epoch'] + 1
         start_iteration = checkpoint['iteration']
         if options.arch.startswith('rfnet'):

@@ -72,7 +72,7 @@ if __name__ == "__main__":
     options.arch = args.arch if args.arch != '' else checkpoint['arch']
     print("== Loading %s" % (options.arch))
     model = models.build_model(options.arch)
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     model.to(options.device).eval()
 
     test_img_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
