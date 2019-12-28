@@ -6,6 +6,7 @@ import os
 import argparse
 import time
 import tqdm
+from datetime import datetime
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     ## prepare model
     checkpoint = torch.load(options.model_path)
     options.arch = args.arch if args.arch != '' else checkpoint['arch']
-    print("== Loading %s" % (options.arch))
+    print("== Evaluating %s" % (options.arch))
     model = models.build_model(options.arch)
     model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     model.to(options.device).eval()
@@ -78,11 +79,12 @@ if __name__ == "__main__":
     test_img_list = open(os.path.join(options.data_path, 'test-split.txt')).read().splitlines()
     test_len = len(test_img_list)
 
-    output_path = os.path.join(options.proj_path, 'result', 'eval')
+    output_path = os.path.join(options.proj_path, 'result_eval')
+    output_file = options.arch + '_' + datetime.now().strftime('%H%M%S') +'.csv'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    with open(os.path.join(output_path, options.arch + '.csv'), 'w') as f:
+    with open(os.path.join(output_path, output_file), 'w') as f:
         log_headers = ['precision', 'recall', 'iou', 'memory', 'inf_time', 'post_time']
         f.write(','.join(log_headers) + '\n')
     if not os.path.exists(os.path.join(output_path, 'summary.csv')):
@@ -109,9 +111,9 @@ if __name__ == "__main__":
             output = model(rgb_input, ddd_input)
             inf_time = time.perf_counter() - t
 
+            ## moving out to cpu, so that does not impact time measurement
             torch.cuda.synchronize()
-            # torch.cuda.empty_cache()
-            time.sleep(0.1) ## will this work?
+            time.sleep(0.1)
 
             t = time.perf_counter()
             cls_pred = output.data.argmax(1).detach().cpu().numpy().squeeze(0)
@@ -148,7 +150,7 @@ if __name__ == "__main__":
         # print("%.8f  %.8f  %.8f  %.8f  %.8f %d" % (precision, recall, iou, inf_time, post_time, label_np[max_point]))
         torch.cuda.reset_max_memory_allocated()
 
-        with open(os.path.join(output_path, options.arch + '.csv'), 'a') as f:
+        with open(os.path.join(output_path, output_file), 'a') as f:
             log = ['%.8f'%(precision), '%.8f'%(recall), '%.8f'%(iou), \
                 '%.8f'%(mem/2**20), '%.8f'%(inf_time), '%.8f'%(post_time)]
             f.write(','.join(log) + '\n')
@@ -198,7 +200,7 @@ if __name__ == "__main__":
     print("max GPU memory:\t", ave_mem/2**30, "GB")
 
     with open(os.path.join(output_path, 'summary.csv'), 'a') as f:
-        log = [options.arch, '%.8f'%(precision), '%.8f'%(recall), '%.8f'%(mean_iou), \
+        log = [output_file, '%.8f'%(precision), '%.8f'%(recall), '%.8f'%(mean_iou), \
             '%.8f'%(ave_mem/2**20), '%.8f'%(mean_time[0]), '%.8f'%(mean_time[1])]
         f.write(','.join(log) + '\n')
 

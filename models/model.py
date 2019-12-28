@@ -361,7 +361,8 @@ class SuctionBiSeNet(nn.Module):
         self.depth_spatial = SpatialPath()
         
         expansion = 1 if self.backbone in ['resnet18', 'resnet34'] else 4
-        self.feature = BiSeNet(n_class, 512*expansion, 512*expansion, 512*3*expansion+512)
+        self.feature = BiSeNet('resnet', n_class, \
+            512*expansion, 512*expansion, 512*3*expansion+512)
         self.upsample = nn.Upsample(size=out_size, mode='bilinear')
         updatePadding(self.feature, nn.ReflectionPad2d)
     
@@ -491,7 +492,8 @@ class SuctionEfficientBiSeNet(nn.Module):
         ffm = [3456, 3456, 3744, 4048, 4640, 5216]
         effnet_idx = int(arch[-1])
         
-        self.feature = BiSeNet(n_class, att1[effnet_idx], att2[effnet_idx], ffm[effnet_idx])
+        self.feature = BiSeNet('efficientnet', n_class, \
+            att1[effnet_idx], att2[effnet_idx], ffm[effnet_idx])
         self.upsample = nn.Upsample(size=out_size, mode='bilinear')
         updatePadding(self.feature, nn.ReflectionPad2d)
     
