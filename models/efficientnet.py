@@ -260,7 +260,7 @@ class EfficientNetBiSeNet(nn.Module):
         """ Calls extract_features to extract features, applies final linear layer, and returns logits. """
         
         ## force input to have the wanted size
-        inputs = F.interpolate(inputs, size=self._in_size, mode='bilinear')
+        # inputs = F.interpolate(inputs, size=self._in_size, mode='bilinear')
 
         ## Convolution layers
         feature3, feature4 = self.extract_features(inputs)

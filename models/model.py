@@ -361,8 +361,7 @@ class SuctionBiSeNet(nn.Module):
         self.depth_spatial = SpatialPath()
         
         expansion = 1 if self.backbone in ['resnet18', 'resnet34'] else 4
-        self.feature = BiSeNet('resnet', n_class, \
-            512*expansion, 512*expansion, 512*3*expansion+512)
+        self.feature = BiSeNet(n_class, 512*expansion, 512*expansion, 512*3*expansion+512)
         self.upsample = nn.Upsample(size=out_size, mode='bilinear')
         updatePadding(self.feature, nn.ReflectionPad2d)
     
@@ -492,19 +491,19 @@ class SuctionEfficientBiSeNet(nn.Module):
         ffm = [3456, 3456, 3744, 4048, 4640, 5216]
         effnet_idx = int(arch[-1])
         
-        self.feature = BiSeNet('efficientnet', n_class, \
-            att1[effnet_idx], att2[effnet_idx], ffm[effnet_idx])
+        self.feature = BiSeNet(n_class, att1[effnet_idx], att2[effnet_idx], ffm[effnet_idx])
         self.upsample = nn.Upsample(size=out_size, mode='bilinear')
         updatePadding(self.feature, nn.ReflectionPad2d)
     
     def forward(self, rgb_input, ddd_input):
+        rgb_input = F.interpolate(rgb_input, size=self.in_size, mode='bilinear')
+        ddd_input = F.interpolate(ddd_input, size=self.in_size, mode='bilinear')
+        
         ## context path
         rgb_cx1, rgb_cx2, rgb_tail = self.rgb_trunk(rgb_input)
         depth_cx1, depth_cx2, depth_tail = self.depth_trunk(ddd_input)
 
         ## spatial path
-        rgb_input = F.interpolate(rgb_input, size=self.in_size, mode='bilinear')
-        ddd_input = F.interpolate(ddd_input, size=self.in_size, mode='bilinear')
         rgb_sx = self.rgb_spatial(rgb_input)
         depth_sx = self.depth_spatial(ddd_input)
 
