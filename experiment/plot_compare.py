@@ -55,6 +55,7 @@ if __name__ == "__main__":
     arches = ['FCN', 'PSPNet', 'BiSeNet']
     for backbone, bb_str in zip([resnet, effnet], ['ResNet', 'EfficientNet']):
         plt.figure()
+        # plt.ylim(0.55, 0.90)
         for a, c, m in zip(arches, colors, markers):
             plt.plot(backbone[a][:, 5], backbone[a][:, 1],
                      c + m + '-', markersize=7.5, label=a)
@@ -62,8 +63,27 @@ if __name__ == "__main__":
             chars = itertools.cycle('ABCDE')
             for row in backbone[a]:
                 plt.text(row[5]-0.75, row[1]+0.0015,
-                         next(chars), fontsize='medium')
+                         next(chars), fontsize='medium', weight='bold')
 
         plt.legend(loc='lower right')
         plt.title('Segmentation Layer Perfomance on ' + bb_str + ' Backbone')
+        plt.ylabel("precision (%)")
+        plt.xlabel("inference time (ms)")
+
+    plt.figure()
+    plt.ylim(0.80, 0.90)
+    bname = ['ResNet', 'EfficientNet']
+    for backbone, c, m, b in zip([resnet, effnet], colors, markers, bname):
+        plt.plot(backbone['PSPNet'][:, 5], backbone['PSPNet'][:, 1],
+                 c + m + '-', markersize=7.5, label=b)
+        for row in backbone['PSPNet']:
+            name = row[0].replace(b.lower(), '').replace('-', '')
+            plt.text(row[5]-0.80, row[1]+0.0018, name,
+                     fontsize='medium', weight='bold')
+
+    plt.legend(loc='lower right')
+    plt.title('Backbone Comparison on PSPNet Segmentation Layer')
+    plt.ylabel("precision (%)")
+    plt.xlabel("inference time (ms)")
+
     plt.show()
