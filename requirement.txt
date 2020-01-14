@@ -1,8 +1,9 @@
 torch
 torchvision
-numpy
+numpy<1.18
 matplotlib
 tqdm
-PIL
+Pillow<7.0.0
 imgaug
 tensorboardX
+pytz
