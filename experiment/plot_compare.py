@@ -55,15 +55,19 @@ if __name__ == "__main__":
     arches = ['FCN', 'PSPNet', 'BiSeNet']
     for backbone, bb_str in zip([resnet, effnet], ['ResNet', 'EfficientNet']):
         plt.figure()
-        # plt.ylim(0.55, 0.90)
+        plt.xlim(0, 60)
+        if(bb_str == 'ResNet'):
+            plt.ylim(80.0, 90.5)
+        elif(bb_str == 'EfficientNet'):
+            plt.ylim(55.0, 90.5)
         for a, c, m in zip(arches, colors, markers):
-            plt.plot(backbone[a][:, 5], backbone[a][:, 1],
+            plt.plot(backbone[a][:, 5], backbone[a][:, 1]*100,
                      c + m + '-', markersize=7.5, label=a)
 
             chars = itertools.cycle('ABCDE')
             for row in backbone[a]:
-                plt.text(row[5]-0.75, row[1]+0.0015,
-                         next(chars), fontsize='medium', weight='bold')
+                plt.text(row[5]-1.3, row[1]*100+0.22,
+                         '['+next(chars)+']' , fontsize='medium', weight='bold')
 
         plt.legend(loc='lower right')
         plt.title('Segmentation Layer Perfomance on ' + bb_str + ' Backbone')
@@ -71,14 +75,14 @@ if __name__ == "__main__":
         plt.xlabel("inference time (ms)")
 
     plt.figure()
-    plt.ylim(0.80, 0.90)
+    plt.ylim(80.0, 90.0)
     bname = ['ResNet', 'EfficientNet']
     for backbone, c, m, b in zip([resnet, effnet], colors, markers, bname):
-        plt.plot(backbone['PSPNet'][:, 5], backbone['PSPNet'][:, 1],
+        plt.plot(backbone['PSPNet'][:, 5], backbone['PSPNet'][:, 1]*100,
                  c + m + '-', markersize=7.5, label=b)
         for row in backbone['PSPNet']:
             name = row[0].replace(b.lower(), '').replace('-', '')
-            plt.text(row[5]-0.80, row[1]+0.0018, name,
+            plt.text(row[5]-0.80, row[1]*100+0.18, name,
                      fontsize='medium', weight='bold')
 
     plt.legend(loc='lower right')
