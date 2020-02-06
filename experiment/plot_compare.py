@@ -27,8 +27,7 @@ if __name__ == "__main__":
             eff_bise.append([arch] + list(map(lambda x: np.float(x), row[1:])))
         elif row[0].startswith('bisenet'):
             arch = row[0].replace('bisenet', 'resnet')
-            resnet_bise.append(
-                [arch] + list(map(lambda x: np.float(x), row[1:])))
+            resnet_bise.append([arch] + list(map(lambda x: np.float(x), row[1:])))
         elif row[0].startswith('fcneffnet'):
             arch = row[0].replace('fcneffnet', 'efficientnet-')
             eff_fcn.append([arch] + list(map(lambda x: float(x), row[1:])))
@@ -39,8 +38,7 @@ if __name__ == "__main__":
             arch = row[0].replace('pspnet', 'resnet')
             resnet_psp.append([arch] + list(map(lambda x: float(x), row[1:])))
         elif row[0].startswith('resnet'):
-            resnet_fcn.append(
-                [row[0]] + list(map(lambda x: float(x), row[1:])))
+            resnet_fcn.append([row[0]] + list(map(lambda x: float(x), row[1:])))
 
     resnet = {'FCN': np.array(resnet_fcn, dtype=object),
               'PSPNet': np.array(resnet_psp, dtype=object),
