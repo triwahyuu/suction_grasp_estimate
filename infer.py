@@ -1,7 +1,6 @@
 ## inference script 
 from vis_util import visualize
 from utils import prepare_input, post_process_output
-from vis_util import post_process
 import models
 
 import os
@@ -9,6 +8,7 @@ import argparse
 import time
 
 import torch
+import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import numpy as np
 from PIL import Image
@@ -20,9 +20,9 @@ class Options(object):
     def __init__(self):
         p = os.path.dirname(os.path.abspath(__file__)).split('/')
         self.proj_path = '/'.join(p)
-        self.data_path = os.path.join('/'.join(p[:-1]), 'dataset/')
+        self.data_path = os.path.join(self.proj_path, 'dataset/')
         self.model_path = ''
-        self.img_height =  480
+        self.img_height = 480
         self.img_width = 640
         self.output_scale = 8
         self.n_class = 3
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     ## get model
     checkpoint = torch.load(options.model_path)
     options.arch = args.arch if args.arch != '' else checkpoint['arch']
-    model = models.build_model(options.arch)
+    model: nn.Module = models.build_model(options.arch)
     model.eval()
     model.to(options.device)
 
@@ -77,30 +77,31 @@ if __name__ == "__main__":
     ## inference
     print('computing inference: ', input_file)
     with torch.no_grad():
-        t = time.time()
-        output = model(rgb_input, ddd_input)
+        for _ in range(5):  ## warmup
+            output = model(rgb_input, ddd_input)
 
-        ## post-processing
+        t = time.perf_counter()
+        output = model(rgb_input, ddd_input)
         cls_pred, affordance_map = post_process_output(output, options)
-        tm = time.time() - t
+        tm = time.perf_counter() - t
 
     affordance_img = (affordance_map * 255).astype(np.uint8)
     label_np = np.asarray(label, dtype=np.uint8)
     threshold = np.percentile(affordance_img, 99) ## top 1% prediction
-    tp = np.sum(np.logical_and((affordance_img > threshold), (label_np == 128)).astype(np.int))
-    fp = np.sum(np.logical_and((affordance_img > threshold), (label_np == 0)).astype(np.int))
-    tn = np.sum(np.logical_and((affordance_img <= threshold), (label_np == 0)).astype(np.int))
-    fn = np.sum(np.logical_and((affordance_img <= threshold), (label_np == 128)).astype(np.int))
+    tp = np.sum(np.logical_and((affordance_img > threshold), (label_np == 128)).astype(int))
+    fp = np.sum(np.logical_and((affordance_img > threshold), (label_np == 0)).astype(int))
+    tn = np.sum(np.logical_and((affordance_img <= threshold), (label_np == 0)).astype(int))
+    fn = np.sum(np.logical_and((affordance_img <= threshold), (label_np == 128)).astype(int))
 
     precision = tp/(tp + fp) if (tp + fp) != 0 else 0
     recall = tp/(tp + fn) if (tp + fn) != 0 else 0
     iou = tp/(tp + fp + fn) if (tp + fp + fn) != 0 else 0
-    print("inference time: ", tm)
-    print("memory allocated: ", torch.cuda.max_memory_allocated()/2**30, "GB")
+    print(f"inference time: {tm*1000:.3f} ms")
+    print(f"memory allocated: {torch.cuda.max_memory_allocated()/2**30:.3f} GB")
     print("   prec       recall       iou   ")
-    print("%.8f  %.8f  %.8f" % (precision, recall, iou))
+    print("{:.8f}  {:.8f}  {:.8f}".format(precision, recall, iou))
 
     max_point = np.unravel_index(affordance_map.argmax(), affordance_map.shape)
-    print(label_np[max_point])
-    
+    print(f"max affordance value: {affordance_map[max_point]:.4f}")
+
     visualize(affordance_map, cls_pred, np.array(rgb_in), label=label_np)
