@@ -13,3 +13,9 @@ __pycache__/
 # some config stuff
 result*/
 .vscode/
+
+*.pth*
+dataset/
+*.png
+*.jpg
+*.jpeg

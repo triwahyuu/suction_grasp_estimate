@@ -1,0 +1,25 @@
+{
+	"name": "Ubuntu",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": ".."
+	},
+	"runArgs": [
+		"--gpus=all"
+	],
+	"postCreateCommand": {
+		"git": "git config --global --add safe.directory '*'",
+		"bash": "echo \"export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history\" >> /root/.bashrc"
+	},
+	"mounts": [
+		"source=suction-bashhistory,target=/commandhistory,type=volume"
+	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.black-formatter"
+			]
+		}
+	}
+}

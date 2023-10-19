@@ -121,7 +121,7 @@ if __name__ == "__main__":
             pred = output.data.detach().cpu().numpy().squeeze(0)[1]
 
             affordance_map = ((pred - pred.min()) / (pred.max() - pred.min()))
-            affordance_map[cls_pred.astype(np.bool) != 1] = 0
+            affordance_map[cls_pred.astype(bool) != 1] = 0
             # affordance_map = gaussian_filter(affordance_map, 4)
             post_time = time.perf_counter() - t
             time_data[n,:] = np.array([inf_time, post_time], dtype=np.float32)
