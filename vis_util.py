@@ -7,7 +7,7 @@ import matplotlib.cm as cm
 import matplotlib.patches as patches
 
 import open3d
-from scipy.ndimage.filters import generic_filter, uniform_filter
+from scipy.ndimage import uniform_filter
 
 
 ## convert boolean numpy array to image
@@ -83,7 +83,7 @@ def post_process(affordance_map, class_pred,
     affordance_map[~foreground_mask] = 0
     class_pred[baseline_score < 0.1] = 0
     class_pred[~foreground_mask] = 0
-    affordance_map[~class_pred.astype(np.bool)] = 0
+    affordance_map[~class_pred.astype(bool)] = 0
     affordance_map = gaussian_filter(affordance_map, 4)
 
     return surface_normals_map, affordance_map, class_pred
@@ -96,12 +96,12 @@ def visualize(affordance_map, class_pred, color_input, surface_normals_map=None,
 
     cmap = cm.get_cmap('jet')
     affordance = cmap(affordance_map)[:,:,:-1] # ommit last channel (get rgb)
-    # affordance[~class_pred.astype(np.bool)] = [0.0, 0.0, 0.0]
+    # affordance[~class_pred.astype(bool)] = [0.0, 0.0, 0.0]
     img = affordance*0.5 + color_input*0.5
 
     cls_img = np.zeros(class_pred.shape + (3,))
-    cls_img[class_pred.astype(np.bool)] = [1.0, 0.6314, 0.0]
-    # cls_img[~class_pred.astype(np.bool)] = [0.0, 0.0, 0.0]
+    cls_img[class_pred.astype(bool)] = [1.0, 0.6314, 0.0]
+    # cls_img[~class_pred.astype(bool)] = [0.0, 0.0, 0.0]
     cls_img = cls_img*0.5 + color_input*0.5
 
     ## best picking point
@@ -111,14 +111,14 @@ def visualize(affordance_map, class_pred, color_input, surface_normals_map=None,
     ## class prediction
     fig, ax = plt.subplots()
     fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
-    fig.canvas.set_window_title('Class Prediction')
+    fig.canvas.manager.set_window_title('Class Prediction')
     ax.imshow(cls_img)
     ax.set_axis_off()
 
     ## affordance map overlaid
     fig1, ax1 = plt.subplots()
     fig1.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
-    fig1.canvas.set_window_title('Affordance Map')
+    fig1.canvas.manager.set_window_title('Affordance Map')
     ax1.imshow(img)
     ax1.add_patch(max_circ)
     ax1.set_axis_off()
@@ -129,14 +129,14 @@ def visualize(affordance_map, class_pred, color_input, surface_normals_map=None,
             (surface_normals_map.min(), surface_normals_map.max()), (0.0, 1.0))
         fig2, ax2 = plt.subplots()
         fig2.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
-        fig2.canvas.set_window_title('Surface Normals')
+        fig2.canvas.manager.set_window_title('Surface Normals')
         ax2.imshow(surface_normals_map)
         ax2.set_axis_off()
     
     if label is not None:
         fig3, ax3 = plt.subplots()
         fig3.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0)
-        fig3.canvas.set_window_title('Label')
+        fig3.canvas.manager.set_window_title('Label')
         ax3.imshow(label)
         ax3.set_axis_off()
 

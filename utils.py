@@ -33,7 +33,7 @@ def post_process_output(out_tensor, options):
     pred = out_tensor.data.cpu().numpy().squeeze(0)[1]
 
     affordance = ((pred - pred.min()) / (pred.max() - pred.min()))
-    affordance[~cls_pred.astype(np.bool)] = 0
+    affordance[~cls_pred.astype(bool)] = 0
     # affordance = gaussian_filter(affordance, 4)
     return cls_pred, affordance
 
