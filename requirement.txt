@@ -1,9 +1,11 @@
-torch
-torchvision
-numpy
+torch==1.13.1
+torchvision==0.14.1
+numpy<=1.26.1
+scipy=1.11.3
 matplotlib
 tqdm
 Pillow
 imgaug
 tensorboardX
 pytz
+open3d
